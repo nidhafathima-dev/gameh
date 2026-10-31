@@ -31,15 +31,15 @@ export class Forest {
     this.stateTimer = 0;
     this.stateDuration = 14.0 + Math.random() * 8.0;
 
-    // The winding guided path spline from awakening (Z=24) to cabin porch (Z=-23.5)
+    // The winding guided path spline from awakening (Z=19.5) to cabin porch (Z=-12.0)
     this.pathCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, 24),
-      new THREE.Vector3(-1.4, 0.08, 16),
-      new THREE.Vector3(1.6, 0.14, 8),
-      new THREE.Vector3(0.2, 0.18, 0),
-      new THREE.Vector3(-1.2, 0.22, -8),
-      new THREE.Vector3(0.9, 0.28, -16),
-      new THREE.Vector3(0.0, 0.35, -23.5),
+      new THREE.Vector3(0, 0, 19.5),
+      new THREE.Vector3(-1.3, 0.08, 14.2),
+      new THREE.Vector3(1.5, 0.14, 8.8),
+      new THREE.Vector3(0.2, 0.18, 3.5),
+      new THREE.Vector3(-1.2, 0.22, -1.8),
+      new THREE.Vector3(0.9, 0.28, -7.0),
+      new THREE.Vector3(0.0, 0.35, -12.0),
     ]);
 
     this.init();
@@ -285,7 +285,7 @@ export class Forest {
 
   // Calculate terrain elevation at any (x, z) to guarantee objects clamp directly to the ground
   getTerrainHeight(x, z) {
-    const clampedT = Math.max(0, Math.min(1, (24 - z) / 48));
+    const clampedT = Math.max(0, Math.min(1, (19.5 - z) / 31.5));
     const pt = this.pathCurve.getPointAt(clampedT);
     const distToPath = Math.sqrt((x - pt.x) ** 2 + (z - pt.z) ** 2);
     let y = Math.sin(x * 0.12) * Math.cos(z * 0.1) * 0.55 + Math.sin(x * 0.3) * 0.18;
@@ -370,12 +370,12 @@ export class Forest {
     // Massive conifer trees flanking the path with long overlapping branches
     // extending across the upper foreground, naturally framing the canopy above the visitor
     const framingConfigs = [
-      { x: 3.2, z: 20.0, height: 22, reachDir: -1, branchY: 4.5, branchLen: 4.8 },
-      { x: -3.4, z: 14.0, height: 24, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
+      { x: 3.2, z: 17.0, height: 22, reachDir: -1, branchY: 4.5, branchLen: 4.8 },
+      { x: -3.4, z: 12.0, height: 24, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
       { x: 3.5, z: 6.0, height: 23, reachDir: -1, branchY: 4.4, branchLen: 4.9 },
-      { x: -3.2, z: -2.0, height: 25, reachDir: 1, branchY: 4.8, branchLen: 5.4 },
-      { x: 3.6, z: -10.0, height: 24, reachDir: -1, branchY: 4.6, branchLen: 5.0 },
-      { x: -3.5, z: -18.0, height: 26, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
+      { x: -3.2, z: 0.0, height: 25, reachDir: 1, branchY: 4.8, branchLen: 5.4 },
+      { x: 3.6, z: -5.5, height: 24, reachDir: -1, branchY: 4.6, branchLen: 5.0 },
+      { x: -3.5, z: -10.5, height: 26, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
     ];
 
     framingConfigs.forEach((cfg) => {
@@ -434,8 +434,8 @@ export class Forest {
       const x = pt.x + side * dist;
       const z = pt.z + (Math.random() * 6 - 3);
 
-      // Clear cabin footprint at Z ≈ -24
-      if (Math.abs(x) < 4.8 && z < -18 && z > -33) continue;
+      // Clear cabin footprint at Z ≈ -18.5
+      if (Math.abs(x) < 5.0 && z < -10.0 && z > -23.5) continue;
 
       const height = 14 + Math.random() * 10;
       const trunkRadius = 0.38 + Math.random() * 0.28;
@@ -461,7 +461,7 @@ export class Forest {
       const x = Math.cos(angle) * radius;
       const z = -4 + Math.sin(angle) * (radius * 0.9);
 
-      if (Math.abs(x) < 4.8 && z < -18 && z > -33) continue;
+      if (Math.abs(x) < 5.0 && z < -10.0 && z > -23.5) continue;
 
       const height = 18 + Math.random() * 9;
       const trunkRadius = 0.4 + Math.random() * 0.25;

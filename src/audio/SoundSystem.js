@@ -449,6 +449,34 @@ export class SoundSystem {
     osc.stop(now + 1.7);
   }
 
+  async playCustomSpiritAudio(audioUrl, onStart = null) {
+    if (!audioUrl || this.isMuted) return null;
+    this.init();
+    this.resume();
+
+    try {
+      const audio = new Audio(audioUrl);
+      audio.volume = this.isMuted ? 0 : 0.95;
+
+      // Connect to masterGain if possible for unified muting & mixing
+      if (this.ctx && this.masterGain) {
+        try {
+          const source = this.ctx.createMediaElementSource(audio);
+          source.connect(this.masterGain);
+        } catch (e) {
+          // createMediaElementSource fallback
+        }
+      }
+
+      await audio.play();
+      if (typeof onStart === 'function') onStart();
+      return audio;
+    } catch (err) {
+      console.warn('Spirit audio playback notification (file may be pending conversion or upload):', err);
+      return null;
+    }
+  }
+
   toggleMute() {
     this.isMuted = !this.isMuted;
     if (this.masterGain && this.ctx) {

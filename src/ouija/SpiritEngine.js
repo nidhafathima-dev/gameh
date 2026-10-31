@@ -1,3 +1,5 @@
+import { spiritConfig } from '../config/spirits.js';
+
 export class SpiritEngine {
   constructor(ouijaBoard, soundSystem, onLetterHit, onSpellComplete) {
     this.board = ouijaBoard;
@@ -13,12 +15,14 @@ export class SpiritEngine {
     this.transitionDuration = 0.95; // seconds to glide between letters
     this.state = 'IDLE'; // 'IDLE', 'MOVING', 'DWELLING'
 
-    // Atmospheric horror spirit response knowledge base
+    this.currentText = '';
+    this.currentSpirit = null;
+    this.hasTriggeredReveal = false;
+
+    // Standard atmospheric supernatural responses for non-identity inquiries
     this.spiritResponses = {
       'is anyone here': 'YES',
       'are you there': 'YES',
-      'who are you': 'THE FORGOTTEN',
-      'what is your name': 'MALACHI',
       'how did you die': 'IN THE FIRE',
       'what do you want': 'YOUR SOUL',
       'are we alone': 'NO',
@@ -47,45 +51,69 @@ export class SpiritEngine {
     ];
   }
 
+  // Determine answer for a user question, recognizing spirit identity inquiries
   getAnswerForQuestion(question) {
     const cleanQ = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 
-    // Check direct matches
+    // 1. Check if this is an inquiry about identity / name
+    if (spiritConfig.isIdentityQuestion(cleanQ)) {
+      const spirit = spiritConfig.getNextSpirit();
+      this.currentSpirit = spirit;
+      return {
+        text: spirit.name.toUpperCase(),
+        isIdentity: true,
+        spirit: spirit,
+      };
+    }
+
+    // Reset current spirit for non-identity answers
+    this.currentSpirit = null;
+
+    // 2. Direct exact matches
     for (const [key, answer] of Object.entries(this.spiritResponses)) {
       if (cleanQ.includes(key) || key.includes(cleanQ)) {
-        return answer;
+        return { text: answer, isIdentity: false, spirit: null };
       }
     }
 
-    // Keyword heuristics
+    // 3. Keyword heuristics
     if (cleanQ.includes('yes') || cleanQ.includes('no')) {
-      return Math.random() > 0.4 ? 'YES' : 'NO';
-    }
-    if (cleanQ.includes('who') || cleanQ.includes('name')) {
-      return 'THE WATCHER';
+      return { text: Math.random() > 0.4 ? 'YES' : 'NO', isIdentity: false, spirit: null };
     }
     if (cleanQ.includes('where')) {
-      return 'ALL AROUND';
+      return { text: 'ALL AROUND', isIdentity: false, spirit: null };
     }
-    if (cleanQ.includes('die') || cleanQ.includes('kill') || cleanQ.includes('blood')) {
-      return 'BURIED DEEP';
+    if (cleanQ.includes('die') || cleanQ.includes('kill') || cleanQ.includes('blood') || cleanQ.includes('dead')) {
+      return { text: 'BURIED DEEP', isIdentity: false, spirit: null };
     }
-    if (cleanQ.includes('leave') || cleanQ.includes('run') || cleanQ.includes('safe')) {
-      return 'RUN NOW';
+    if (cleanQ.includes('leave') || cleanQ.includes('run') || cleanQ.includes('safe') || cleanQ.includes('escape')) {
+      return { text: 'RUN NOW', isIdentity: false, spirit: null };
     }
 
-    // Pick random chilling response
-    return this.fallbackResponses[Math.floor(Math.random() * this.fallbackResponses.length)];
+    // 4. Random chilling fallback response
+    const fallback = this.fallbackResponses[Math.floor(Math.random() * this.fallbackResponses.length)];
+    return { text: fallback, isIdentity: false, spirit: null };
   }
 
-  spellText(text) {
+  spellText(answerData) {
     if (this.isSpelling) return;
 
-    this.isSpelling = true;
-    this.letterQueue = [];
-    this.spelledSoFar = '';
+    // Support either raw string or structured answerData
+    let text = '';
+    if (typeof answerData === 'string') {
+      text = answerData;
+      this.currentSpirit = null;
+    } else if (answerData && typeof answerData === 'object') {
+      text = answerData.text || '';
+      this.currentSpirit = answerData.spirit || null;
+    }
 
-    const upper = text.toUpperCase().trim();
+    this.isSpelling = true;
+    this.hasTriggeredReveal = false;
+    this.letterQueue = [];
+    this.currentText = text.toUpperCase().trim();
+
+    const upper = this.currentText;
 
     // If whole words are YES, NO, or GOODBYE, target directly
     if (upper === 'YES' || upper === 'NO' || upper === 'GOODBYE') {
@@ -107,12 +135,20 @@ export class SpiritEngine {
 
   nextTarget() {
     if (this.letterQueue.length === 0) {
-      // Finished spelling! Slide back towards REST or GOODBYE
-      setTimeout(() => {
-        this.board.setTargetSymbol('REST');
-        this.isSpelling = false;
-        this.onSpellComplete();
-      }, 1200);
+      // All letters have been reached! Complete reveal.
+      if (!this.hasTriggeredReveal) {
+        this.hasTriggeredReveal = true;
+        // Pause briefly after final letter is revealed
+        setTimeout(() => {
+          this.onSpellComplete(this.currentText, this.currentSpirit);
+        }, 800);
+
+        // Slide planchette gently back towards resting position after full reveal sequence
+        setTimeout(() => {
+          this.board.setTargetSymbol('REST');
+          this.isSpelling = false;
+        }, 3200);
+      }
       return;
     }
 
@@ -136,7 +172,7 @@ export class SpiritEngine {
 
     if (this.state === 'MOVING') {
       if (this.timer >= this.transitionDuration) {
-        // Arrived at letter!
+        // Arrived at letter
         this.state = 'DWELLING';
         this.timer = 0;
         this.audio.playLetterArrivalChime();

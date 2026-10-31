@@ -97,10 +97,10 @@ export class SceneManager {
     rayGeo.rotateZ(Math.PI / 8); // Slanted beam
 
     const rayPositions = [
-      [-4.0, 14, 12],
-      [3.5, 15, 2],
-      [-2.8, 14, -10],
-      [4.2, 16, -18],
+      [-4.0, 14, 11],
+      [3.5, 15, 4],
+      [-2.8, 14, -3],
+      [4.2, 16, -9],
     ];
 
     rayPositions.forEach((pos) => {

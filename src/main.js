@@ -22,15 +22,15 @@ class App {
     this.ouija = new OuijaBoard(this.sceneManager.scene);
 
     // Position the Ouija board directly on the rustic cabin table
-    // Table surface is at (0, 0.85, -29.1)
-    this.ouija.boardGroup.position.set(0, 0.87, -29.05);
+    // Table surface is at (0, 0.85, -19.1)
+    this.ouija.boardGroup.position.set(0, 0.87, -19.05);
 
     // Spirit Engine
     this.spiritEngine = new SpiritEngine(
       this.ouija,
       this.sound,
       (letter) => this.onLetterSpelled(letter),
-      () => this.onSpellingDone()
+      (text, spirit) => this.onSpellingDone(text, spirit)
     );
 
     // Cinematic timeline
@@ -151,11 +151,40 @@ class App {
     this.spelledWordEl.textContent = this.accumulatedText.trim();
   }
 
-  onSpellingDone() {
-    this.subtitleText.textContent = `The spirit has answered: "${this.spiritAnswer}"`;
-    setTimeout(() => {
-      this.subtitleText.classList.remove('visible');
-    }, 4500);
+  onSpellingDone(text, spirit) {
+    const displayText = text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer);
+
+    // If an associated spirit with custom audio was revealed
+    if (spirit && spirit.audio) {
+      // 1. Brief pause after final letter has completed in spiritEngine
+      // 2. Play the associated MP3 audio automatically
+      // 3. Synchronize with candle surge & startled camera shudder
+      this.subtitleText.textContent = `A dark presence awakens: "${spirit.name}"`;
+      this.subtitleText.classList.add('visible');
+
+      // Unexpected scare effect: violent candle flicker & camera tremor
+      this.cabin.triggerCandleSurge(3.2);
+      this.timeline.shakeAmount = 0.14;
+
+      // Play custom spirit audio once for this reveal
+      this.sound.playCustomSpiritAudio(spirit.audio, () => {
+        this.transcriptionBox.classList.add('spirit-screech');
+        setTimeout(() => {
+          this.transcriptionBox.classList.remove('spirit-screech');
+        }, 3000);
+      });
+
+      setTimeout(() => {
+        this.subtitleText.classList.remove('visible');
+      }, 5500);
+    } else {
+      // Atmospheric response for spirits or queries without custom audio
+      this.subtitleText.textContent = `The spirit has answered: "${displayText}"`;
+      this.subtitleText.classList.add('visible');
+      setTimeout(() => {
+        this.subtitleText.classList.remove('visible');
+      }, 4500);
+    }
   }
 
   setupInteractivity() {

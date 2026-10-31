@@ -503,6 +503,23 @@ html, body {
   100% { opacity: 1; text-shadow: 0 0 20px rgba(243, 212, 125, 0.9); }
 }
 
+#spirit-transcription.spirit-screech {
+  border-color: rgba(220, 40, 20, 0.85);
+  background: rgba(35, 6, 4, 0.9);
+  box-shadow: 0 0 25px rgba(220, 40, 20, 0.5), inset 0 0 15px rgba(220, 40, 20, 0.3);
+  animation: spiritScreechShake 0.12s infinite alternate;
+}
+
+#spirit-transcription.spirit-screech .transcription-text {
+  color: #ff5533;
+  text-shadow: 0 0 20px #ff2200, 0 0 35px #aa0000;
+}
+
+@keyframes spiritScreechShake {
+  0% { transform: translate(-1px, 1px); }
+  100% { transform: translate(1px, -1px); }
+}
+
 @media (max-width: 768px) {
   .awakening-title {
     font-size: 1.8rem;

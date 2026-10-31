@@ -4,13 +4,13 @@ export class Cabin {
   constructor(scene) {
     this.scene = scene;
     this.cabinGroup = new THREE.Group();
-    this.cabinGroup.position.set(0, 0, -28.5);
+    this.cabinGroup.position.set(0, 0, -18.5);
 
     this.candleLights = [];
     this.candleFlames = [];
     this.doorPivot = null;
     this.dustParticles = null;
-    this.tablePosition = new THREE.Vector3(0, 0.85, -29.0);
+    this.tablePosition = new THREE.Vector3(0, 0.85, -19.1);
 
     // Weathered Exterior Lights & Door Slam Animation
     this.windowLight = null;
@@ -21,6 +21,7 @@ export class Cabin {
     this.currentDoorAngle = 0;
     this.targetDoorAngle = 0;
     this.cabinMistSprites = [];
+    this.candleSurgeTime = 0;
 
     this.init();
   }
@@ -546,6 +547,11 @@ export class Cabin {
     return target;
   }
 
+  // Trigger violent supernatural candle flicker/surge during audio reveal scares
+  triggerCandleSurge(duration = 2.5) {
+    this.candleSurgeTime = duration;
+  }
+
   update(delta, clockTime) {
     // 1. Explosive Door Slam with Dynamic Rebound Physics
     if (this.isDoorSlamming && this.doorPivot) {
@@ -578,18 +584,33 @@ export class Cabin {
       this.porchLight.intensity = Math.max(0.7, 1.2 + pflicker);
     }
 
-    // 3. Realistic candle flame flickering and light intensity jitter inside cabin
+    // 3. Realistic candle flame flickering and supernatural surges
+    const isSurging = this.candleSurgeTime > 0;
+    if (isSurging) {
+      this.candleSurgeTime -= delta;
+    }
+
     for (let i = 0; i < this.candleLights.length; i++) {
       const light = this.candleLights[i];
       const flame = this.candleFlames[i];
+      let intensityMult = 1.0;
+      let flameScaleMult = 1.0;
+
+      if (isSurging) {
+        // Violent shudder: dips low then flares with supernatural power
+        const surgePulse = Math.sin(this.candleSurgeTime * 28 + i * 4);
+        intensityMult = surgePulse > 0 ? 2.4 : 0.15;
+        flameScaleMult = surgePulse > 0 ? 2.2 : 0.3;
+      }
+
       const noise = Math.sin(clockTime * 12 + i * 2.8) * Math.cos(clockTime * 19 + i * 1.7);
-      light.intensity = 0.85 + noise * 0.22 + Math.random() * 0.08;
+      light.intensity = (0.85 + noise * 0.22 + Math.random() * 0.08) * intensityMult;
 
       if (flame) {
         flame.scale.set(
-          1 + noise * 0.15,
-          1 + Math.sin(clockTime * 15 + i) * 0.25,
-          1 + noise * 0.15
+          (1 + noise * 0.15) * flameScaleMult,
+          (1 + Math.sin(clockTime * 15 + i) * 0.25) * flameScaleMult,
+          (1 + noise * 0.15) * flameScaleMult
         );
       }
     }
