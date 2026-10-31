@@ -45,7 +45,7 @@ html, body {
   height: 100%;
   pointer-events: none;
   z-index: 10;
-  background: radial-gradient(circle at center, transparent 40%, rgba(4, 7, 6, 0.75) 80%, rgba(2, 4, 3, 0.95) 100%);
+  background: radial-gradient(circle at center, transparent 52%, rgba(20, 28, 33, 0.38) 82%, rgba(12, 18, 22, 0.75) 100%);
   mix-blend-mode: multiply;
 }
 

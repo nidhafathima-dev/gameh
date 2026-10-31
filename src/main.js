@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SceneManager } from './scene/SceneManager.js';
 import { Forest } from './environment/Forest.js';
+import { ShadowPhenomena } from './environment/ShadowPhenomena.js';
 import { Cabin } from './environment/Cabin.js';
 import { BatSwarm } from './environment/Bats.js';
 import { OuijaBoard } from './ouija/OuijaBoard.js';
@@ -14,7 +15,8 @@ class App {
     this.sound = new SoundSystem();
     this.sceneManager = new SceneManager(this.container);
 
-    this.forest = new Forest(this.sceneManager.scene);
+    this.shadows = new ShadowPhenomena(this.sceneManager.scene, this.sound);
+    this.forest = new Forest(this.sceneManager.scene, this.shadows);
     this.cabin = new Cabin(this.sceneManager.scene);
     this.bats = new BatSwarm(this.sceneManager.scene);
     this.ouija = new OuijaBoard(this.sceneManager.scene);
@@ -265,6 +267,7 @@ class App {
 
     // Update systems
     this.forest.update(delta, clockTime);
+    this.shadows.update(delta, this.sceneManager.camera, this.timeline.pathT);
     this.cabin.update(delta, clockTime);
     this.bats.update(delta, clockTime);
     const planchetteSpeed = this.ouija.update(delta, clockTime);
