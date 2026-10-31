@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Immersive cinematic 3D horror website and interactive antique Ouija board experience." />
+  <title>OUIJA &bull; Cinematic 3D Horror Experience</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- 3D Three.js WebGL Canvas Container -->
+  <div id="canvas-container"></div>
+
+  <!-- Atmospheric Vignette & Darkness Layer -->
+  <div class="vignette-overlay"></div>
+
+  <!-- Awakening Eyes Shutter Simulation -->
+  <div id="eyelids-overlay" class="eyelids">
+    <div class="eyelid-top"></div>
+    <div class="eyelid-bottom"></div>
+  </div>
+  <div id="vision-blur" class="vision-blur"></div>
+
+  <!-- Awakening / Start Prompt -->
+  <div id="awakening-prompt">
+    <h1 class="awakening-title">THE AWAKENING</h1>
+    <p class="awakening-sub">A forgotten path in the dark woods awaits...</p>
+    <div class="pulse-indicator">
+      <span>CLICK TO AWAKEN</span>
+    </div>
+  </div>
+
+  <!-- Top Right Corner Controls -->
+  <div class="corner-controls">
+    <button id="audio-toggle-btn" class="control-btn" aria-label="Toggle Sound">🔊 Sound</button>
+    <button id="skip-intro-btn" class="control-btn" aria-label="Skip to Ouija Board">Skip to Board</button>
+    <button id="replay-intro-btn" class="control-btn" style="display: none;" aria-label="Replay Experience">Replay Journey</button>
+  </div>
+
+  <!-- Forest Walking HUD -->
+  <div id="walk-controls-hud">
+    <span class="hud-desc"><span class="key-tag">W</span> Walk Forward</span>
+    <span class="hud-desc"><span class="key-tag">S</span> Step Back</span>
+    <span class="hud-desc">Drag mouse to look around</span>
+  </div>
+
+  <!-- Narrative Atmosphere Subtitles -->
+  <div id="narrative-subtitles"></div>
+
+  <!-- Ouija Interactive Seance Console -->
+  <div id="ouija-interactive-ui">
+    <div class="ui-header">
+      <div class="ui-header-left">
+        <h2 class="ui-title">THE SÉANCE</h2>
+        <span class="ui-instructions">Drag Planchette freely or ask below</span>
+      </div>
+      <button id="toggle-console-btn" class="mini-toggle-btn" title="Toggle Console">▾ Minimize</button>
+    </div>
+    <div id="console-collapsible-body">
+
+    <!-- Quick Question Prompt Pills -->
+    <div class="pills-container">
+      <button class="question-pill" data-question="Is anyone here with us?">Is anyone here?</button>
+      <button class="question-pill" data-question="What is your name?">What is your name?</button>
+      <button class="question-pill" data-question="How did you die?">How did you die?</button>
+      <button class="question-pill" data-question="What do you want?">What do you want?</button>
+      <button class="question-pill" data-question="Are we alone?">Are we alone?</button>
+      <button class="question-pill" data-question="Can you see me?">Can you see me?</button>
+    </div>
+
+    <!-- Freeform Question Input -->
+    <div class="input-group">
+      <input
+        type="text"
+        id="spirit-question-input"
+        class="question-input"
+        placeholder="Whisper your question into the dark..."
+        maxlength="60"
+      />
+      <button id="ask-spirit-btn" class="submit-btn">COMMUNE</button>
+    </div>
+
+    <!-- Live Spirit Transcription -->
+    <div id="spirit-transcription">
+      <span class="transcription-label">SPIRIT TRANSCRIPTION:</span>
+      <span id="spelled-word" class="transcription-text">AWAITING</span>
+    </div>
+    </div> <!-- /console-collapsible-body -->
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
