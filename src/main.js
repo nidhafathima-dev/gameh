@@ -267,6 +267,7 @@ class App {
 
     // Update systems
     this.forest.update(delta, clockTime);
+    this.sound.setWindIntensity(this.forest.windIntensity);
     this.shadows.update(delta, this.sceneManager.camera, this.timeline.pathT);
     this.cabin.update(delta, clockTime);
     this.bats.update(delta, clockTime);

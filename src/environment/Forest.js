@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+export const WIND_STATES = {
+  CALM: { name: 'Calm', intensity: 0.22, gustFreq: 0.8, leafSpeedMult: 0.65, branchMult: 0.5 },
+  MODERATE: { name: 'Moderate', intensity: 0.58, gustFreq: 1.4, leafSpeedMult: 1.15, branchMult: 1.0 },
+  STRONG: { name: 'Strong', intensity: 1.18, gustFreq: 2.2, leafSpeedMult: 2.2, branchMult: 2.3 },
+};
+
 export class Forest {
   constructor(scene, shadowPhenomena = null) {
     this.scene = scene;
@@ -10,8 +16,20 @@ export class Forest {
     this.foliageClusters = []; // Individual needle clusters for unsynchronized subtle movement
     this.bushes = [];
     this.ferns = [];
+    this.grassTufts = [];
+    this.leavesParticles = null;
+    this.sporesParticles = null;
+
+    // Real-time Environmental Wind System
+    this.windState = 'CALM';
+    this.targetWindIntensity = WIND_STATES.CALM.intensity;
+    this.currentWindIntensity = WIND_STATES.CALM.intensity;
+    this.windIntensity = WIND_STATES.CALM.intensity;
+    this.windDirection = new THREE.Vector2(-0.82, 0.57).normalize(); // Blowing across the path
     this.windTime = 0;
-    this.windIntensity = 0.4;
+    this.gustTime = 0;
+    this.stateTimer = 0;
+    this.stateDuration = 14.0 + Math.random() * 8.0;
 
     // The winding guided path spline from awakening (Z=24) to cabin porch (Z=-23.5)
     this.pathCurve = new THREE.CatmullRomCurve3([
@@ -36,8 +54,17 @@ export class Forest {
     this.createMidgroundMatureConifers();
     this.createDistantBackgroundTrees();
     this.createUndergrowthAndFerns();
+    this.createGrassTufts();
     this.createDriftingLeaves();
+    this.createAtmosphericSpores();
     this.createLowLyingMist();
+  }
+
+  setWindState(stateKey) {
+    if (WIND_STATES[stateKey]) {
+      this.windState = stateKey;
+      this.targetWindIntensity = WIND_STATES[stateKey].intensity;
+    }
   }
 
   createMaterials() {
@@ -221,6 +248,38 @@ export class Forest {
       map: rockTex,
       roughness: 0.92,
       metalness: 0.04,
+    });
+
+    // 7. Wild Woodland Grass / Sedge Material
+    const grassCanvas = document.createElement('canvas');
+    grassCanvas.width = 128;
+    grassCanvas.height = 256;
+    const gctx2 = grassCanvas.getContext('2d');
+    gctx2.clearRect(0, 0, 128, 256);
+    // Tapering grass blade
+    gctx2.fillStyle = '#233828';
+    gctx2.beginPath();
+    gctx2.moveTo(56, 256);
+    gctx2.lineTo(72, 256);
+    gctx2.quadraticCurveTo(76, 110, 64, 8);
+    gctx2.quadraticCurveTo(52, 110, 56, 256);
+    gctx2.fill();
+    // Subtle central highlight
+    gctx2.strokeStyle = '#324e3a';
+    gctx2.lineWidth = 1.5;
+    gctx2.beginPath();
+    gctx2.moveTo(64, 256);
+    gctx2.lineTo(64, 15);
+    gctx2.stroke();
+
+    const grassTex = new THREE.CanvasTexture(grassCanvas);
+    this.grassMat = new THREE.MeshStandardMaterial({
+      map: grassTex,
+      transparent: true,
+      alphaTest: 0.32,
+      roughness: 0.88,
+      metalness: 0.02,
+      side: THREE.DoubleSide,
     });
   }
 
@@ -453,7 +512,7 @@ export class Forest {
         mesh: foliage,
         freq: 1.0 + Math.random() * 1.2,
         phase: Math.random() * Math.PI * 2,
-        amplitude: 0.016,
+        amplitude: 0.016 * (1.0 - tierRatio * 0.35),
       });
 
       // Irregular dead lower horizontal branches
@@ -473,7 +532,6 @@ export class Forest {
 
   createUndergrowthAndFerns() {
     // Realistic woodland ferns with arched fronds and organic moss base
-    // Anchored at base (y=0) and curling gently outward
     const frondGeo = new THREE.PlaneGeometry(0.68, 1.35, 2, 4);
     frondGeo.translate(0, 0.675, 0);
     const pos = frondGeo.attributes.position;
@@ -519,7 +577,7 @@ export class Forest {
       this.scene.add(clump);
       this.ferns.push({
         group: clump,
-        freq: 2.0 + Math.random() * 1.5,
+        freq: 1.8 + Math.random() * 1.4,
         phase: Math.random() * Math.PI * 2,
       });
 
@@ -530,18 +588,67 @@ export class Forest {
     }
   }
 
+  createGrassTufts() {
+    // Dense woodland grass blades along the path edges that bend with the wind
+    const bladeGeo = new THREE.PlaneGeometry(0.12, 0.75, 1, 3);
+    bladeGeo.translate(0, 0.375, 0); // Root at (0,0,0)
+    // Curvature in blade
+    const pos = bladeGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const py = pos.getY(i);
+      const c = (py / 0.75) ** 2 * 0.14;
+      pos.setZ(i, pos.getZ(i) - c);
+    }
+    bladeGeo.computeVertexNormals();
+
+    for (let i = 0; i < 125; i++) {
+      const pathT = Math.random();
+      const pt = this.pathCurve.getPointAt(pathT);
+      const side = Math.random() > 0.5 ? 1 : -1;
+      const dist = 1.2 + Math.random() * 6.5;
+
+      const gx = pt.x + side * dist;
+      const gz = pt.z + (Math.random() * 3 - 1.5);
+      const gy = this.getTerrainHeight(gx, gz);
+
+      const tuftGroup = new THREE.Group();
+      tuftGroup.position.set(gx, gy, gz);
+
+      const bladeCount = 5 + Math.floor(Math.random() * 4);
+      for (let b = 0; b < bladeCount; b++) {
+        const blade = new THREE.Mesh(bladeGeo, this.grassMat);
+        blade.rotation.y = (b / bladeCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        blade.rotation.x = 0.2 + Math.random() * 0.25;
+        const s = 0.7 + Math.random() * 0.55;
+        blade.scale.set(s, s * (0.85 + Math.random() * 0.3), s);
+        tuftGroup.add(blade);
+      }
+
+      this.scene.add(tuftGroup);
+      this.grassTufts.push({
+        group: tuftGroup,
+        freq: 2.2 + Math.random() * 1.6,
+        phase: Math.random() * Math.PI * 2,
+        baseRotX: 0,
+        baseRotZ: 0,
+      });
+    }
+  }
+
   createDriftingLeaves() {
     // 3D Fluttering loose leaves drifting through the mist
-    const leafCount = 70;
+    const leafCount = 80;
     const leafGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(leafCount * 3);
     const speeds = new Float32Array(leafCount);
+    const lateralPhases = new Float32Array(leafCount);
 
     for (let i = 0; i < leafCount; i++) {
-      positions[i * 3 + 0] = (Math.random() - 0.5) * 28;
-      positions[i * 3 + 1] = 0.8 + Math.random() * 6;
+      positions[i * 3 + 0] = (Math.random() - 0.5) * 32;
+      positions[i * 3 + 1] = 0.6 + Math.random() * 7;
       positions[i * 3 + 2] = -24 + Math.random() * 52;
-      speeds[i] = 0.012 + Math.random() * 0.024;
+      speeds[i] = 0.012 + Math.random() * 0.022;
+      lateralPhases[i] = Math.random() * Math.PI * 2;
     }
 
     leafGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -578,7 +685,46 @@ export class Forest {
 
     this.leavesParticles = new THREE.Points(leafGeo, leafMat);
     this.leavesSpeeds = speeds;
+    this.leavesLateralPhases = lateralPhases;
     this.scene.add(this.leavesParticles);
+  }
+
+  createAtmosphericSpores() {
+    // Luminous ethereal forest spores drifting in the moonlit fog
+    const count = 140;
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      pos[i * 3 + 0] = (Math.random() - 0.5) * 28;
+      pos[i * 3 + 1] = 0.6 + Math.random() * 5.5;
+      pos[i * 3 + 2] = -26 + Math.random() * 54;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+
+    const sCanvas = document.createElement('canvas');
+    sCanvas.width = 32;
+    sCanvas.height = 32;
+    const sctx = sCanvas.getContext('2d');
+    const grad = sctx.createRadialGradient(16, 16, 1, 16, 16, 15);
+    grad.addColorStop(0, 'rgba(215, 235, 245, 0.95)');
+    grad.addColorStop(0.35, 'rgba(170, 205, 220, 0.45)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, 32, 32);
+
+    const sTex = new THREE.CanvasTexture(sCanvas);
+    const mat = new THREE.PointsMaterial({
+      size: 0.08,
+      map: sTex,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+
+    this.sporesParticles = new THREE.Points(geo, mat);
+    this.scene.add(this.sporesParticles);
   }
 
   createLowLyingMist() {
@@ -609,7 +755,7 @@ export class Forest {
       const sprite = new THREE.Sprite(mistMat);
       sprite.position.set(
         (Math.random() - 0.5) * 44,
-        0.4 + Math.random() * 2.2, // Hovering around forest floor
+        0.4 + Math.random() * 2.2,
         -28 + Math.random() * 56
       );
       const s = 12 + Math.random() * 16;
@@ -622,45 +768,103 @@ export class Forest {
     }
   }
 
-  update(delta, clockTime) {
-    this.windTime += delta * this.windIntensity;
+  updateWindStateMachine(delta) {
+    this.stateTimer += delta;
+    if (this.stateTimer >= this.stateDuration) {
+      this.stateTimer = 0;
+      // Cycle: CALM -> MODERATE -> (occasionally STRONG) -> MODERATE -> CALM
+      if (this.windState === 'CALM') {
+        this.setWindState('MODERATE');
+        this.stateDuration = 14.0 + Math.random() * 8.0;
+      } else if (this.windState === 'MODERATE') {
+        const toStrong = Math.random() > 0.45;
+        this.setWindState(toStrong ? 'STRONG' : 'CALM');
+        this.stateDuration = toStrong ? 7.0 + Math.random() * 5.0 : 12.0 + Math.random() * 8.0;
+      } else {
+        this.setWindState('MODERATE');
+        this.stateDuration = 10.0 + Math.random() * 6.0;
+      }
+    }
 
-    // 1. Subtle, unsynchronized branch & foliage movement (TRUNKS STAY STATIONARY!)
+    // Smooth exponential blend to target intensity
+    this.currentWindIntensity += (this.targetWindIntensity - this.currentWindIntensity) * 0.85 * delta;
+
+    // Organic gust pulse
+    this.gustTime += delta * (1.2 + this.currentWindIntensity * 0.8);
+    const gustNoise = Math.sin(this.gustTime * 0.75) * Math.cos(this.gustTime * 1.35) * 0.2;
+    this.windIntensity = Math.max(0.12, this.currentWindIntensity + gustNoise);
+  }
+
+  update(delta, clockTime) {
+    this.updateWindStateMachine(delta);
+    this.windTime += delta * (this.windIntensity * 1.3);
+
+    const stateConfig = WIND_STATES[this.windState] || WIND_STATES.CALM;
+
+    // 1. Unsynchronized Branch & Foliage Swaing (Trunks stationary, branches flex)
     for (let i = 0; i < this.foliageClusters.length; i++) {
       const item = this.foliageClusters[i];
-      const swayZ = Math.sin(this.windTime * item.freq + item.phase) * item.amplitude;
-      const swayX = Math.cos(this.windTime * (item.freq * 0.8) + item.phase) * (item.amplitude * 0.7);
-      item.mesh.rotation.z = swayZ;
-      item.mesh.rotation.x = swayX;
+      const intensityMult = 1.0 + this.windIntensity * 1.4;
+      const swayZ = Math.sin(this.windTime * item.freq + item.phase) * item.amplitude * intensityMult;
+      const swayX = Math.cos(this.windTime * (item.freq * 0.85) + item.phase) * (item.amplitude * 0.8) * intensityMult;
+
+      // Add directional lean matching the wind vector
+      const windPushZ = this.windDirection.y * (this.windIntensity * 0.025);
+      const windPushX = this.windDirection.x * (this.windIntensity * 0.025);
+
+      item.mesh.rotation.z = swayZ + windPushX;
+      item.mesh.rotation.x = swayX + windPushZ;
     }
 
-    // Large foreground framing branches have very slow, subtle movement
+    // Large foreground framing branches
     for (let i = 0; i < this.largeBranches.length; i++) {
       const b = this.largeBranches[i];
-      b.group.rotation.z = Math.sin(this.windTime * b.freq + b.phase) * 0.007;
+      const bAmp = 0.007 * (1.0 + this.windIntensity * 1.6);
+      b.group.rotation.z = Math.sin(this.windTime * b.freq + b.phase) * bAmp + this.windDirection.x * (this.windIntensity * 0.012);
+      b.group.rotation.x = Math.cos(this.windTime * (b.freq * 0.8) + b.phase) * (bAmp * 0.6) + this.windDirection.y * (this.windIntensity * 0.012);
     }
 
-    // 2. Ferns & bushes gentle independent oscillation
+    // 2. Grass Bending According to Wind Direction (Requirement #4)
+    for (let i = 0; i < this.grassTufts.length; i++) {
+      const g = this.grassTufts[i];
+      // Wave motion rolling across the terrain
+      const wave = Math.sin(this.windTime * g.freq + g.phase) * 0.12 + 0.18;
+      const bend = wave * (this.windIntensity * 1.6);
+
+      g.group.rotation.z = g.baseRotZ + this.windDirection.x * bend;
+      g.group.rotation.x = g.baseRotX + this.windDirection.y * bend;
+    }
+
+    // 3. Ferns & Bushes Bending with Wind
     for (let i = 0; i < this.ferns.length; i++) {
       const fern = this.ferns[i];
-      fern.group.rotation.z = Math.sin(this.windTime * fern.freq + fern.phase) * 0.06;
+      const fernOsc = Math.sin(this.windTime * fern.freq + fern.phase) * 0.06;
+      const fernBend = (0.08 + fernOsc) * (this.windIntensity * 1.3);
+
+      fern.group.rotation.z = this.windDirection.x * fernBend;
+      fern.group.rotation.x = this.windDirection.y * fernBend;
     }
 
-    // 3. Falling leaves drift
+    // 4. Detached Leaves Drifting & Fluttering (Requirements #2, #3)
     if (this.leavesParticles) {
       const pos = this.leavesParticles.geometry.attributes.position;
+      const speedMult = stateConfig.leafSpeedMult;
+
       for (let i = 0; i < pos.count; i++) {
         let x = pos.getX(i);
         let y = pos.getY(i);
         let z = pos.getZ(i);
 
-        x += Math.sin(this.windTime * 1.8 + i) * 0.02 + 0.015 * this.windIntensity;
-        y -= this.leavesSpeeds[i];
-        z += Math.cos(this.windTime * 1.4 + i) * 0.015;
+        // Turbulence and horizontal drift in wind direction
+        const flutter = Math.sin(this.windTime * 2.2 + this.leavesLateralPhases[i]) * 0.03;
+        x += this.windDirection.x * (0.025 * this.windIntensity * speedMult) + flutter;
+        z += this.windDirection.y * (0.025 * this.windIntensity * speedMult) + flutter * 0.5;
+        y -= this.leavesSpeeds[i] * (0.8 + this.windIntensity * 0.6);
 
-        if (y < 0.2) {
-          y = 7 + Math.random() * 2;
-          x = (Math.random() - 0.5) * 28;
+        if (y < 0.25) {
+          // Detach new leaf from canopy
+          y = 5.5 + Math.random() * 2.5;
+          x = (Math.random() - 0.5) * 32;
           z = -24 + Math.random() * 52;
         }
         pos.setXYZ(i, x, y, z);
@@ -668,12 +872,31 @@ export class Forest {
       pos.needsUpdate = true;
     }
 
-    // 4. Low-lying forest floor mist drift
+    // 5. Atmospheric Spores Moving through Forest (Requirement #7)
+    if (this.sporesParticles) {
+      const spos = this.sporesParticles.geometry.attributes.position;
+      for (let i = 0; i < spos.count; i++) {
+        let sx = spos.getX(i);
+        let sy = spos.getY(i);
+        let sz = spos.getZ(i);
+
+        sx += this.windDirection.x * (0.008 * this.windIntensity) + Math.sin(this.windTime + i) * 0.004;
+        sz += this.windDirection.y * (0.008 * this.windIntensity) + Math.cos(this.windTime + i) * 0.004;
+        sy += Math.sin(this.windTime * 0.8 + i) * 0.003;
+
+        if (sx < -16) sx = 16;
+        if (sz > 28) sz = -28;
+        spos.setXYZ(i, sx, sy, sz);
+      }
+      spos.needsUpdate = true;
+    }
+
+    // 6. Natural Low-Lying Fog Drift (Requirement #6)
     for (let i = 0; i < this.mistSprites.length; i++) {
       const item = this.mistSprites[i];
-      item.sprite.position.x += item.driftSpeed * this.windIntensity;
-      if (item.sprite.position.x > 26) {
-        item.sprite.position.x = -26;
+      item.sprite.position.x += item.driftSpeed * this.windIntensity * 1.5;
+      if (item.sprite.position.x > 28) {
+        item.sprite.position.x = -28;
       }
     }
   }

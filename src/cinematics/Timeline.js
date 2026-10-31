@@ -273,43 +273,47 @@ export class Timeline {
     this.phase = PHASES.DOOR_APPROACH;
     this.phaseTime = 0;
     this.startCamPos.copy(this.scene.camera.position);
+    this.hasSlammedDoor = false;
     this.onPhaseChange(this.phase);
   }
 
   updateDoorApproach(delta) {
-    const t = Math.min(1.0, this.phaseTime / 3.2);
+    const t = Math.min(1.0, this.phaseTime / 3.4);
     const ease = this.easeInOutCubic(t);
 
-    // Glide smoothly onto the porch directly in front of the door (0, 1.75, -23.8)
-    const targetDoorCam = new THREE.Vector3(0, 1.75, -23.8);
+    // Glide smoothly onto the porch directly in front of the door (0, 1.72, -23.7)
+    const targetDoorCam = new THREE.Vector3(0, 1.72, -23.7);
     this.scene.camera.position.lerpVectors(this.startCamPos, targetDoorCam, ease);
 
     // Look straight at door handle/center (0, 1.75, -25.2)
     this.scene.camera.lookAt(0, 1.75, -25.2);
 
     if (t >= 1.0) {
-      // Build brief suspense pause
+      // Transition to DOOR_SLAM_BATS with dramatic suspense pause
       this.phase = PHASES.DOOR_SLAM_BATS;
       this.phaseTime = 0;
+      this.hasSlammedDoor = false;
       this.onPhaseChange(this.phase);
-
-      // Trigger door slam & bats after 0.5s suspense
-      setTimeout(() => {
-        this.cabin.setDoorOpen(Math.PI * 0.62); // Slam open!
-        this.audio.playDoorCreakAndSlam();
-        this.audio.playBatSwarm();
-        this.bats.trigger(new THREE.Vector3(0, 1.8, -25.2), this.scene.camera.position);
-        this.shakeAmount = 0.12; // Startled shudder
-      }, 500);
     }
   }
 
   updateDoorSlamBats(delta) {
-    // Keep camera focused on open doorway while bats fly out past camera
-    this.scene.camera.lookAt(0, 1.75, -28.0);
+    // Keep camera focused on door/doorway
+    this.scene.camera.lookAt(0, 1.75, -26.5);
 
-    // Allow bats to disperse and pause for dramatic tension (~3.5 seconds total)
-    if (this.phaseTime > 3.6) {
+    // Suspense pause: 0.8 seconds of eerie stillness before sudden violent slam
+    if (this.phaseTime >= 0.8 && !this.hasSlammedDoor) {
+      this.hasSlammedDoor = true;
+      // Violent explosive door slam with rebound bounce!
+      this.cabin.slamDoorOpen();
+      this.audio.playDoorCreakAndSlam();
+      this.audio.playBatSwarm();
+      this.bats.trigger(new THREE.Vector3(0, 1.8, -25.2), this.scene.camera.position);
+      this.shakeAmount = 0.22; // Startled flinch & camera recoil
+    }
+
+    // Allow bats to swarm past and dramatic tension to settle (~4.2 seconds total)
+    if (this.phaseTime > 4.2) {
       this.phase = PHASES.ENTERING_CABIN;
       this.phaseTime = 0;
       this.startCamPos.copy(this.scene.camera.position);

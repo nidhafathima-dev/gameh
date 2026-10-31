@@ -12,6 +12,16 @@ export class Cabin {
     this.dustParticles = null;
     this.tablePosition = new THREE.Vector3(0, 0.85, -29.0);
 
+    // Weathered Exterior Lights & Door Slam Animation
+    this.windowLight = null;
+    this.sideWindowLight = null;
+    this.porchLight = null;
+    this.isDoorSlamming = false;
+    this.doorSlamTime = 0;
+    this.currentDoorAngle = 0;
+    this.targetDoorAngle = 0;
+    this.cabinMistSprites = [];
+
     this.init();
   }
 
@@ -22,6 +32,7 @@ export class Cabin {
     this.createDoor();
     this.createTableAndCandelabra();
     this.createDustMotes();
+    this.createCabinMist();
 
     this.scene.add(this.cabinGroup);
   }
@@ -178,19 +189,31 @@ export class Cabin {
     porch.receiveShadow = true;
     this.cabinGroup.add(porch);
 
-    // Porch posts
-    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, 2.8, 6);
+    // Weathered lower porch step with slight uneven wear
+    const stepGeo = new THREE.BoxGeometry(w * 0.58, 0.16, 0.75);
+    const step = new THREE.Mesh(stepGeo, this.extWoodMat);
+    step.position.set(0, 0.08, d / 2 + 2.5);
+    step.rotation.y = 0.025;
+    step.receiveShadow = true;
+    this.cabinGroup.add(step);
+
+    // Porch posts (crooked and weathered with natural structural settling)
+    const postGeo = new THREE.CylinderGeometry(0.12, 0.14, 2.8, 8);
     const post1 = new THREE.Mesh(postGeo, this.extWoodMat);
     post1.position.set(-w / 2 + 0.2, 1.4, d / 2 + 2.2);
+    post1.rotation.z = -0.055;
+    post1.rotation.x = 0.04;
     post1.castShadow = true;
     this.cabinGroup.add(post1);
 
     const post2 = new THREE.Mesh(postGeo, this.extWoodMat);
     post2.position.set(w / 2 - 0.2, 1.4, d / 2 + 2.2);
+    post2.rotation.z = 0.048;
+    post2.rotation.x = -0.045;
     post2.castShadow = true;
     this.cabinGroup.add(post2);
 
-    // Faint warm porch lantern
+    // Faint warm porch lantern hanging from porch eave
     const lanternGeo = new THREE.CylinderGeometry(0.1, 0.15, 0.35, 6);
     const lanternMat = new THREE.MeshStandardMaterial({
       color: 0xffaa44,
@@ -198,12 +221,12 @@ export class Cabin {
       roughness: 0.3,
     });
     const lantern = new THREE.Mesh(lanternGeo, lanternMat);
-    lantern.position.set(post1.position.x + 0.2, 2.1, post1.position.z);
+    lantern.position.set(post1.position.x + 0.25, 2.1, post1.position.z);
     this.cabinGroup.add(lantern);
 
-    const porchLight = new THREE.PointLight(0xff9944, 1.2, 18, 1.5);
-    porchLight.position.copy(lantern.position);
-    this.cabinGroup.add(porchLight);
+    this.porchLight = new THREE.PointLight(0xff9944, 1.2, 18, 1.5);
+    this.porchLight.position.copy(lantern.position);
+    this.cabinGroup.add(this.porchLight);
 
     // Warm glowing window on front right
     const windowGeo = new THREE.PlaneGeometry(0.9, 1.1);
@@ -227,10 +250,38 @@ export class Cabin {
     vBar.position.copy(frontWindow.position);
     this.cabinGroup.add(vBar);
 
-    // Warm beacon light shining from window down path
-    const windowLight = new THREE.PointLight(0xff8833, 1.6, 25, 1.4);
-    windowLight.position.set(2.2, 1.8, d / 2 + 0.4);
-    this.cabinGroup.add(windowLight);
+    // Warm beacon light shining from front window down path
+    this.windowLight = new THREE.PointLight(0xff8833, 1.6, 25, 1.4);
+    this.windowLight.position.set(2.2, 1.8, d / 2 + 0.4);
+    this.cabinGroup.add(this.windowLight);
+
+    // Side window on left wall with subtle interior amber glow
+    const sideWindow = new THREE.Mesh(windowGeo, windowMat);
+    sideWindow.position.set(-w / 2 - 0.02, 1.8, 0);
+    sideWindow.rotateY(-Math.PI / 2);
+    this.cabinGroup.add(sideWindow);
+
+    this.sideWindowLight = new THREE.PointLight(0xff7722, 1.0, 15, 1.6);
+    this.sideWindowLight.position.set(-w / 2 - 0.3, 1.8, 0);
+    this.cabinGroup.add(this.sideWindowLight);
+
+    // Moss clumps clinging to foundation corners and porch edges
+    const mossGeo = new THREE.SphereGeometry(0.35, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+    const mossMat = new THREE.MeshStandardMaterial({ color: 0x1d2c20, roughness: 0.95 });
+    const mossPositions = [
+      [-w / 2 + 0.15, 0, d / 2 + 0.15],
+      [w / 2 - 0.15, 0, d / 2 + 0.15],
+      [-w / 2 + 0.15, 0, -d / 2 + 0.15],
+      [w / 2 - 0.15, 0, -d / 2 + 0.15],
+      [-1.3, 0, d / 2 + 1.2],
+      [1.4, 0, d / 2 + 1.2],
+    ];
+    mossPositions.forEach(([mx, my, mz]) => {
+      const m = new THREE.Mesh(mossGeo, mossMat);
+      m.position.set(mx, my, mz);
+      m.scale.set(1.4, 0.55, 1.4);
+      this.cabinGroup.add(m);
+    });
   }
 
   createInterior() {
@@ -306,8 +357,16 @@ export class Cabin {
   setDoorOpen(angle) {
     if (this.doorPivot) {
       // Swings inward into the cabin
+      this.currentDoorAngle = angle;
       this.doorPivot.rotation.y = -angle;
     }
+  }
+
+  // Explosive door slam with dynamic wooden rebound bounce
+  slamDoorOpen() {
+    this.isDoorSlamming = true;
+    this.doorSlamTime = 0;
+    this.targetDoorAngle = Math.PI * 0.64; // ~115 degrees inward
   }
 
   createTableAndCandelabra() {
@@ -439,6 +498,46 @@ export class Cabin {
     this.tableGroup.add(this.dustParticles);
   }
 
+  createCabinMist() {
+    // Low mist hovering around cabin foundation and porch steps
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 8, 64, 64, 60);
+    grad.addColorStop(0, 'rgba(190, 215, 225, 0.35)');
+    grad.addColorStop(0.5, 'rgba(160, 190, 205, 0.18)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 128, 128);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({
+      map: tex,
+      transparent: true,
+      opacity: 0.38,
+      depthWrite: false,
+    });
+
+    for (let i = 0; i < 8; i++) {
+      const sprite = new THREE.Sprite(mat);
+      const angle = (i / 8) * Math.PI * 2;
+      sprite.position.set(
+        Math.cos(angle) * 4.2 + (Math.random() - 0.5) * 1.5,
+        0.35 + Math.random() * 0.6,
+        Math.sin(angle) * 4.2 + (Math.random() - 0.5) * 1.5
+      );
+      sprite.scale.set(6 + Math.random() * 4, 2.2, 1);
+      this.cabinGroup.add(sprite);
+      this.cabinMistSprites.push({
+        sprite,
+        baseX: sprite.position.x,
+        speed: 0.008 + Math.random() * 0.012,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
   // Get world position of table center for camera targeting
   getTableWorldPosition() {
     const target = new THREE.Vector3();
@@ -448,7 +547,38 @@ export class Cabin {
   }
 
   update(delta, clockTime) {
-    // 1. Realistic candle flame flickering and light intensity jitter
+    // 1. Explosive Door Slam with Dynamic Rebound Physics
+    if (this.isDoorSlamming && this.doorPivot) {
+      this.doorSlamTime += delta;
+      const dur = 0.35; // Fast violent slam
+      if (this.doorSlamTime < dur) {
+        const p = this.doorSlamTime / dur;
+        const ease = Math.sin(p * Math.PI * 0.5);
+        // High frequency dampening bounce as door strikes interior stop
+        const bounce = Math.sin(p * Math.PI * 4.0) * 0.08 * Math.exp(-p * 6.0);
+        this.currentDoorAngle = (ease * this.targetDoorAngle) + bounce;
+      } else {
+        this.currentDoorAngle = this.targetDoorAngle;
+        this.isDoorSlamming = false;
+      }
+      this.doorPivot.rotation.y = -this.currentDoorAngle;
+    }
+
+    // 2. Weathered Window & Porch Lights Eerie Amber Glow & Flicker
+    if (this.windowLight) {
+      const flicker = Math.sin(clockTime * 14.0) * 0.18 + Math.cos(clockTime * 7.5) * 0.12 + (Math.random() - 0.5) * 0.08;
+      this.windowLight.intensity = Math.max(0.9, 1.6 + flicker);
+    }
+    if (this.sideWindowLight) {
+      const sflicker = Math.sin(clockTime * 11.5 + 1.2) * 0.15 + (Math.random() - 0.5) * 0.06;
+      this.sideWindowLight.intensity = Math.max(0.6, 1.0 + sflicker);
+    }
+    if (this.porchLight) {
+      const pflicker = Math.sin(clockTime * 9.0 + 2.4) * 0.12 + (Math.random() - 0.5) * 0.05;
+      this.porchLight.intensity = Math.max(0.7, 1.2 + pflicker);
+    }
+
+    // 3. Realistic candle flame flickering and light intensity jitter inside cabin
     for (let i = 0; i < this.candleLights.length; i++) {
       const light = this.candleLights[i];
       const flame = this.candleFlames[i];
@@ -464,7 +594,7 @@ export class Cabin {
       }
     }
 
-    // 2. Swirling dust motes
+    // 4. Swirling interior dust motes
     if (this.dustParticles) {
       const pos = this.dustParticles.geometry.attributes.position;
       for (let i = 0; i < pos.count; i++) {
@@ -483,6 +613,12 @@ export class Cabin {
         pos.setXYZ(i, x, y, z);
       }
       pos.needsUpdate = true;
+    }
+
+    // 5. Low-lying cabin perimeter mist drift
+    for (let i = 0; i < this.cabinMistSprites.length; i++) {
+      const item = this.cabinMistSprites[i];
+      item.sprite.position.x = item.baseX + Math.sin(clockTime * 0.5 + item.phase) * 0.6;
     }
   }
 }
