@@ -128,35 +128,114 @@ export class Forest {
       metalness: 0.05,
     });
 
-    // 3. Dense Pine Needle Cluster Material (Deep forest conifer green)
+    // 3. Dense Pine Needle Cluster Material (Deep forest conifer green, smooth normals)
     this.needleMat = new THREE.MeshStandardMaterial({
-      color: 0x1a2e26, // Muted cool forest pine green
-      roughness: 0.85,
-      metalness: 0.08,
-      flatShading: true,
+      color: 0x182c23,
+      roughness: 0.88,
+      metalness: 0.04,
+      flatShading: false,
     });
 
     // Foreground silhouetted needle material (darker for framing against background mist)
     this.foregroundNeedleMat = new THREE.MeshStandardMaterial({
-      color: 0x121e1a,
-      roughness: 0.88,
-      metalness: 0.05,
-      flatShading: true,
+      color: 0x111c18,
+      roughness: 0.9,
+      metalness: 0.03,
+      flatShading: false,
     });
 
-    // 4. Woodland Fern & Bush Leaf Material
+    // 4. Woodland Fern & Bush Leaf Material with organic feathered alpha texture
+    const fernCanvas = document.createElement('canvas');
+    fernCanvas.width = 256;
+    fernCanvas.height = 512;
+    const fctx = fernCanvas.getContext('2d');
+    fctx.clearRect(0, 0, 256, 512);
+
+    // Spine / rachis
+    fctx.strokeStyle = '#273c2e';
+    fctx.lineWidth = 4;
+    fctx.beginPath();
+    fctx.moveTo(128, 512);
+    fctx.quadraticCurveTo(127, 260, 128, 15);
+    fctx.stroke();
+
+    // Leaflets (pinnae) with natural feathered tapering
+    const pinnaeCount = 20;
+    for (let p = 0; p < pinnaeCount; p++) {
+      const t = p / pinnaeCount;
+      const y = 490 - t * 460;
+      const maxW = Math.sin(Math.pow(t, 0.45) * Math.PI) * 92 * (1.0 - t * 0.7);
+
+      // Left pinna
+      fctx.fillStyle = t > 0.4 ? '#253d2d' : '#1c3124';
+      fctx.beginPath();
+      fctx.moveTo(128, y);
+      fctx.bezierCurveTo(128 - maxW * 0.4, y - 8, 128 - maxW, y - 12, 128 - maxW, y);
+      fctx.bezierCurveTo(128 - maxW * 0.7, y + 8, 128 - maxW * 0.3, y + 6, 128, y + 2);
+      fctx.fill();
+
+      // Right pinna
+      fctx.fillStyle = t > 0.4 ? '#213728' : '#192b1f';
+      fctx.beginPath();
+      fctx.moveTo(128, y);
+      fctx.bezierCurveTo(128 + maxW * 0.4, y - 8, 128 + maxW, y - 12, 128 + maxW, y);
+      fctx.bezierCurveTo(128 + maxW * 0.7, y + 8, 128 + maxW * 0.3, y + 6, 128, y + 2);
+      fctx.fill();
+    }
+
+    const fernTex = new THREE.CanvasTexture(fernCanvas);
     this.fernMat = new THREE.MeshStandardMaterial({
-      color: 0x223c2e,
+      map: fernTex,
+      transparent: true,
+      alphaTest: 0.35,
       roughness: 0.85,
+      metalness: 0.02,
       side: THREE.DoubleSide,
     });
 
-    // 5. Granite Boulder Material
-    this.rockMat = new THREE.MeshStandardMaterial({
-      color: 0x2a3538,
-      roughness: 0.92,
-      metalness: 0.06,
+    // 5. Moss Mound Material (for organic plant base grounding)
+    this.mossMat = new THREE.MeshStandardMaterial({
+      color: 0x1f3025,
+      roughness: 0.95,
+      metalness: 0.02,
     });
+
+    // 6. Granite / Moss Boulder Material
+    const rockCanvas = document.createElement('canvas');
+    rockCanvas.width = 256;
+    rockCanvas.height = 256;
+    const rctx = rockCanvas.getContext('2d');
+    rctx.fillStyle = '#222c2a'; // Dark slate grey base
+    rctx.fillRect(0, 0, 256, 256);
+    // Mossy patches
+    for (let i = 0; i < 500; i++) {
+      const rx = Math.random() * 256;
+      const ry = Math.random() * 256;
+      rctx.fillStyle = Math.random() > 0.5 ? '#1a2920' : '#2b3d32';
+      rctx.beginPath();
+      rctx.arc(rx, ry, 3 + Math.random() * 9, 0, Math.PI * 2);
+      rctx.fill();
+    }
+    const rockTex = new THREE.CanvasTexture(rockCanvas);
+    this.rockMat = new THREE.MeshStandardMaterial({
+      map: rockTex,
+      roughness: 0.92,
+      metalness: 0.04,
+    });
+  }
+
+  // Calculate terrain elevation at any (x, z) to guarantee objects clamp directly to the ground
+  getTerrainHeight(x, z) {
+    const clampedT = Math.max(0, Math.min(1, (24 - z) / 48));
+    const pt = this.pathCurve.getPointAt(clampedT);
+    const distToPath = Math.sqrt((x - pt.x) ** 2 + (z - pt.z) ** 2);
+    let y = Math.sin(x * 0.12) * Math.cos(z * 0.1) * 0.55 + Math.sin(x * 0.3) * 0.18;
+    if (distToPath < 2.2) {
+      y *= 0.15;
+    } else {
+      y += (distToPath - 2.2) * 0.07;
+    }
+    return y;
   }
 
   createTerrain() {
@@ -168,20 +247,7 @@ export class Forest {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
-
-      // Distance from the guided path
-      const clampedT = Math.max(0, Math.min(1, (24 - z) / 48));
-      const pt = this.pathCurve.getPointAt(clampedT);
-      const distToPath = Math.sqrt((x - pt.x) ** 2 + (z - pt.z) ** 2);
-
-      // Natural rolling woodland ground undulations
-      let y = Math.sin(x * 0.12) * Math.cos(z * 0.1) * 0.55 + Math.sin(x * 0.3) * 0.18;
-      if (distToPath < 2.2) {
-        y *= 0.15; // Flatten gently for the guided walking corridor
-      } else {
-        y += (distToPath - 2.2) * 0.07;
-      }
-      pos.setY(i, y);
+      pos.setY(i, this.getTerrainHeight(x, z));
     }
     geo.computeVertexNormals();
 
@@ -192,17 +258,21 @@ export class Forest {
 
   createFallenLogs() {
     // Scattered rotting tree trunks and dead fallen branches on the ground
-    const logGeo = new THREE.CylinderGeometry(0.2, 0.26, 4.5, 7);
+    const logGeo = new THREE.CylinderGeometry(0.2, 0.26, 4.5, 10);
     logGeo.rotateZ(Math.PI / 2);
+    logGeo.computeVertexNormals();
 
     for (let i = 0; i < 18; i++) {
       const t = Math.random();
       const pt = this.pathCurve.getPointAt(t);
       const side = Math.random() > 0.5 ? 1 : -1;
       const dist = 2.4 + Math.random() * 8.0;
+      const lx = pt.x + side * dist;
+      const lz = pt.z + (Math.random() * 4 - 2);
+      const ly = this.getTerrainHeight(lx, lz);
 
       const log = new THREE.Mesh(logGeo, this.barkMat);
-      log.position.set(pt.x + side * dist, 0.18, pt.z + (Math.random() * 4 - 2));
+      log.position.set(lx, ly + 0.18, lz);
       log.rotation.y = Math.random() * Math.PI;
       log.rotation.z = (Math.random() - 0.5) * 0.12;
       log.castShadow = true;
@@ -212,32 +282,25 @@ export class Forest {
   }
 
   createMossyRocks() {
-    const rockGeo = new THREE.DodecahedronGeometry(1.2, 1);
-    const pos = rockGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-      const vx = pos.getX(i);
-      const vy = pos.getY(i);
-      const vz = pos.getZ(i);
-      const scale = 0.75 + Math.random() * 0.45;
-      pos.setXYZ(i, vx * scale, vy * scale * 0.65, vz * scale);
-    }
+    // Smooth rounded glacial erratic boulders (no sharp or spiky triangular facets)
+    const rockGeo = new THREE.SphereGeometry(1.0, 16, 12);
+    rockGeo.scale(1.25, 0.62, 0.95);
     rockGeo.computeVertexNormals();
 
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 30; i++) {
       const rock = new THREE.Mesh(rockGeo, this.rockMat);
       const pathT = Math.random();
       const pt = this.pathCurve.getPointAt(pathT);
       const side = Math.random() > 0.5 ? 1 : -1;
-      const offsetDist = 2.2 + Math.random() * 14;
+      const offsetDist = 2.5 + Math.random() * 12;
+      const rx = pt.x + side * offsetDist;
+      const rz = pt.z + (Math.random() * 5 - 2.5);
+      const ry = this.getTerrainHeight(rx, rz);
 
-      rock.position.set(
-        pt.x + side * offsetDist,
-        0.15 + Math.random() * 0.25,
-        pt.z + (Math.random() * 5 - 2.5)
-      );
-      const s = 0.5 + Math.random() * 1.1;
-      rock.scale.set(s, s * (0.6 + Math.random() * 0.4), s);
-      rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+      rock.position.set(rx, ry + 0.12, rz);
+      const s = 0.55 + Math.random() * 0.9;
+      rock.scale.set(s * 1.2, s * 0.65, s);
+      rock.rotation.y = Math.random() * Math.PI * 2;
       rock.castShadow = true;
       rock.receiveShadow = true;
       this.scene.add(rock);
@@ -246,47 +309,47 @@ export class Forest {
 
   createForegroundFramingTrees() {
     // Massive conifer trees flanking the path with long overlapping branches
-    // extending across the upper foreground, framing the camera's view in dark silhouettes
+    // extending across the upper foreground, naturally framing the canopy above the visitor
     const framingConfigs = [
-      { x: 3.2, z: 20.0, height: 22, reachDir: -1, branchY: 3.2, branchLen: 4.8 },
-      { x: -3.4, z: 14.0, height: 24, reachDir: 1, branchY: 3.6, branchLen: 5.2 },
-      { x: 3.5, z: 6.0, height: 23, reachDir: -1, branchY: 3.4, branchLen: 4.9 },
-      { x: -3.2, z: -2.0, height: 25, reachDir: 1, branchY: 3.8, branchLen: 5.4 },
-      { x: 3.6, z: -10.0, height: 24, reachDir: -1, branchY: 3.5, branchLen: 5.0 },
-      { x: -3.5, z: -18.0, height: 26, reachDir: 1, branchY: 3.8, branchLen: 5.2 },
+      { x: 3.2, z: 20.0, height: 22, reachDir: -1, branchY: 4.5, branchLen: 4.8 },
+      { x: -3.4, z: 14.0, height: 24, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
+      { x: 3.5, z: 6.0, height: 23, reachDir: -1, branchY: 4.4, branchLen: 4.9 },
+      { x: -3.2, z: -2.0, height: 25, reachDir: 1, branchY: 4.8, branchLen: 5.4 },
+      { x: 3.6, z: -10.0, height: 24, reachDir: -1, branchY: 4.6, branchLen: 5.0 },
+      { x: -3.5, z: -18.0, height: 26, reachDir: 1, branchY: 4.7, branchLen: 5.2 },
     ];
 
     framingConfigs.forEach((cfg) => {
       const tree = this.buildMatureConiferTree(cfg.height, 0.65, true);
-      tree.group.position.set(cfg.x, 0, cfg.z);
+      const groundY = this.getTerrainHeight(cfg.x, cfg.z);
+      tree.group.position.set(cfg.x, groundY, cfg.z);
 
-      // Add prominent low-reaching foreground branch extending directly over the path
+      // Add prominent overhead foreground branch extending across upper canopy
       const framingBranchGroup = new THREE.Group();
       framingBranchGroup.position.set(0, cfg.branchY, 0);
 
-      const branchGeo = new THREE.CylinderGeometry(0.08, 0.16, cfg.branchLen, 6);
+      const branchGeo = new THREE.CylinderGeometry(0.08, 0.16, cfg.branchLen, 8);
       branchGeo.translate(0, cfg.branchLen / 2, 0);
-      branchGeo.rotateZ(cfg.reachDir * (Math.PI / 2.4)); // Reaching horizontally across path
+      branchGeo.rotateZ(cfg.reachDir * (Math.PI / 2.35));
+      branchGeo.computeVertexNormals();
       const branchMesh = new THREE.Mesh(branchGeo, this.barkMat);
       branchMesh.castShadow = true;
       framingBranchGroup.add(branchMesh);
 
-      // Foliage clusters along this framing branch
+      // Natural gnarled sub-twigs physically branching off the main bough
       for (let f = 1; f <= 3; f++) {
-        const clusterGeo = new THREE.ConeGeometry(1.6 - f * 0.3, 1.4, 7);
-        clusterGeo.rotateZ(cfg.reachDir * (Math.PI / 6));
-        const cluster = new THREE.Mesh(clusterGeo, this.foregroundNeedleMat);
-        cluster.position.set(cfg.reachDir * (f * (cfg.branchLen / 3.4)), -0.2, 0);
-        cluster.castShadow = true;
-        framingBranchGroup.add(cluster);
+        const twigLen = 1.1 - f * 0.22;
+        const twigGeo = new THREE.CylinderGeometry(0.03, 0.05, twigLen, 6);
+        twigGeo.translate(0, twigLen / 2, 0);
+        twigGeo.rotateZ(cfg.reachDir * (Math.PI / 1.7));
+        twigGeo.computeVertexNormals();
+        const twigMesh = new THREE.Mesh(twigGeo, this.barkMat);
 
-        // Register for subtle wind sway
-        this.foliageClusters.push({
-          mesh: cluster,
-          freq: 1.2 + Math.random() * 0.8,
-          phase: Math.random() * Math.PI * 2,
-          amplitude: 0.022,
-        });
+        const distAlong = f * (cfg.branchLen / 3.4);
+        const bx = Math.sin(Math.PI / 2.35) * distAlong * cfg.reachDir;
+        const by = Math.cos(Math.PI / 2.35) * distAlong;
+        twigMesh.position.set(bx, by, (f % 2 === 0 ? 0.08 : -0.08));
+        framingBranchGroup.add(twigMesh);
       }
 
       tree.group.add(framingBranchGroup);
@@ -319,9 +382,10 @@ export class Forest {
       const trunkRadius = 0.38 + Math.random() * 0.28;
 
       const tree = this.buildMatureConiferTree(height, trunkRadius, false);
-      tree.group.position.set(x, 0, z);
+      const groundY = this.getTerrainHeight(x, z);
+      tree.group.position.set(x, groundY, z);
 
-      // Natural subtle tilt (trunks remain stationary during runtime!)
+      // Natural subtle tilt (trunks remain stationary during runtime)
       tree.group.rotation.z = (Math.random() - 0.5) * 0.08;
       tree.group.rotation.x = (Math.random() - 0.5) * 0.08;
 
@@ -344,7 +408,8 @@ export class Forest {
       const trunkRadius = 0.4 + Math.random() * 0.25;
 
       const tree = this.buildMatureConiferTree(height, trunkRadius, false);
-      tree.group.position.set(x, 0, z);
+      const groundY = this.getTerrainHeight(x, z);
+      tree.group.position.set(x, groundY, z);
 
       this.scene.add(tree.group);
       this.trees.push(tree.group);
@@ -355,14 +420,15 @@ export class Forest {
     const treeGroup = new THREE.Group();
 
     // 1. Irregular Tapering Trunk (100% stationary)
-    const trunkGeo = new THREE.CylinderGeometry(trunkRadius * 0.45, trunkRadius, height, 9);
+    const trunkGeo = new THREE.CylinderGeometry(trunkRadius * 0.45, trunkRadius, height, 10);
     trunkGeo.translate(0, height / 2, 0);
+    trunkGeo.computeVertexNormals();
     const trunk = new THREE.Mesh(trunkGeo, this.barkMat);
     trunk.castShadow = true;
     trunk.receiveShadow = true;
     treeGroup.add(trunk);
 
-    // 2. Multi-tier Drooping Pine Needle Clusters
+    // 2. Multi-tier Drooping Pine Needle Clusters (16 segments, smooth normals)
     const tiers = 7 + Math.floor(Math.random() * 4);
     const mat = isForeground ? this.foregroundNeedleMat : this.needleMat;
 
@@ -372,9 +438,9 @@ export class Forest {
       const tierRadius = (1 - tierRatio * 0.75) * (3.0 + Math.random() * 1.0);
       const tierHeight = (height / tiers) * 1.5;
 
-      // Realistic cone cluster with slight random rotation
-      const coneGeo = new THREE.ConeGeometry(tierRadius, tierHeight, 8);
+      const coneGeo = new THREE.ConeGeometry(tierRadius, tierHeight, 16);
       coneGeo.translate(0, tierHeight / 2, 0);
+      coneGeo.computeVertexNormals();
       const foliage = new THREE.Mesh(coneGeo, mat);
       foliage.position.y = tierY;
       foliage.rotation.y = Math.random() * Math.PI * 2;
@@ -387,13 +453,14 @@ export class Forest {
         mesh: foliage,
         freq: 1.0 + Math.random() * 1.2,
         phase: Math.random() * Math.PI * 2,
-        amplitude: 0.018,
+        amplitude: 0.016,
       });
 
       // Irregular dead lower horizontal branches
       if (t < 3) {
-        const branchGeo = new THREE.CylinderGeometry(0.04, 0.07, tierRadius * 1.1, 5);
+        const branchGeo = new THREE.CylinderGeometry(0.04, 0.07, tierRadius * 1.0, 6);
         branchGeo.rotateZ(Math.PI / 2.3);
+        branchGeo.computeVertexNormals();
         const branch = new THREE.Mesh(branchGeo, this.barkMat);
         branch.position.set(0, tierY * 0.94, 0);
         branch.rotation.y = Math.random() * Math.PI * 2;
@@ -405,25 +472,47 @@ export class Forest {
   }
 
   createUndergrowthAndFerns() {
-    // Dense woodland ferns and wild undergrowth bushes
-    const fernGeo = new THREE.PlaneGeometry(0.9, 1.5);
-    fernGeo.rotateX(Math.PI / 3);
+    // Realistic woodland ferns with arched fronds and organic moss base
+    // Anchored at base (y=0) and curling gently outward
+    const frondGeo = new THREE.PlaneGeometry(0.68, 1.35, 2, 4);
+    frondGeo.translate(0, 0.675, 0);
+    const pos = frondGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const py = pos.getY(i);
+      const curl = (py / 1.35) ** 2 * 0.22;
+      pos.setZ(i, pos.getZ(i) - curl);
+    }
+    frondGeo.computeVertexNormals();
 
-    for (let i = 0; i < 110; i++) {
+    const mossGeo = new THREE.SphereGeometry(0.32, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+
+    for (let i = 0; i < 95; i++) {
       const pathT = Math.random();
       const pt = this.pathCurve.getPointAt(pathT);
       const side = Math.random() > 0.5 ? 1 : -1;
-      const dist = 1.6 + Math.random() * 7.5;
+      const dist = 1.8 + Math.random() * 7.5;
+
+      const clumpX = pt.x + side * dist;
+      const clumpZ = pt.z + (Math.random() * 4 - 2);
+      const clumpY = this.getTerrainHeight(clumpX, clumpZ);
 
       const clump = new THREE.Group();
-      clump.position.set(pt.x + side * dist, 0.08, pt.z + (Math.random() * 4 - 2));
+      clump.position.set(clumpX, clumpY, clumpZ);
+
+      // Organic moss mound anchor
+      const mossMound = new THREE.Mesh(mossGeo, this.mossMat);
+      mossMound.scale.set(1.0 + Math.random() * 0.4, 0.45, 1.0 + Math.random() * 0.4);
+      clump.add(mossMound);
 
       // Circular arrangement of arching fern fronds
-      const frondCount = 6;
+      const frondCount = 5 + Math.floor(Math.random() * 3);
       for (let f = 0; f < frondCount; f++) {
-        const frond = new THREE.Mesh(fernGeo, this.fernMat);
-        frond.rotation.y = (f / frondCount) * Math.PI * 2 + Math.random() * 0.3;
-        frond.rotation.z = 0.25 + Math.random() * 0.25;
+        const frond = new THREE.Mesh(frondGeo, this.fernMat);
+        const angle = (f / frondCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+        frond.rotation.y = angle;
+        frond.rotation.x = 0.32 + Math.random() * 0.22;
+        const frondScale = 0.75 + Math.random() * 0.45;
+        frond.scale.set(frondScale, frondScale, frondScale);
         clump.add(frond);
       }
 
@@ -443,36 +532,47 @@ export class Forest {
 
   createDriftingLeaves() {
     // 3D Fluttering loose leaves drifting through the mist
-    const leafCount = 85;
+    const leafCount = 70;
     const leafGeo = new THREE.BufferGeometry();
     const positions = new Float32Array(leafCount * 3);
     const speeds = new Float32Array(leafCount);
 
     for (let i = 0; i < leafCount; i++) {
       positions[i * 3 + 0] = (Math.random() - 0.5) * 28;
-      positions[i * 3 + 1] = 0.8 + Math.random() * 7;
+      positions[i * 3 + 1] = 0.8 + Math.random() * 6;
       positions[i * 3 + 2] = -24 + Math.random() * 52;
-      speeds[i] = 0.015 + Math.random() * 0.03;
+      speeds[i] = 0.012 + Math.random() * 0.024;
     }
 
     leafGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-    // Custom textured leaf point
+    // Custom textured leaf point with soft feathered edges
     const canvas = document.createElement('canvas');
     canvas.width = 64;
     canvas.height = 64;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#4a3220'; // Dry autumn leaf brown
+    ctx.clearRect(0, 0, 64, 64);
+
+    // Soft organic oval leaf
+    ctx.fillStyle = '#3e2c1e'; // Warm damp fallen leaf brown
     ctx.beginPath();
-    ctx.ellipse(32, 32, 20, 11, Math.PI / 4, 0, Math.PI * 2);
+    ctx.ellipse(32, 32, 16, 9, Math.PI / 4, 0, Math.PI * 2);
     ctx.fill();
+
+    // Central vein
+    ctx.strokeStyle = '#553c2a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(20, 20);
+    ctx.lineTo(44, 44);
+    ctx.stroke();
 
     const leafTex = new THREE.CanvasTexture(canvas);
     const leafMat = new THREE.PointsMaterial({
-      size: 0.32,
+      size: 0.14,
       map: leafTex,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.8,
       depthWrite: false,
     });
 
