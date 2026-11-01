@@ -2,31 +2,10 @@
   "spirits": [
     {
       "id": "spirit_1",
-      "name": "Chathan",
-      "audio": null,
+      "name": "Chatan",
+      "audio": "/assets/audio/CHATHAN.mp4",
       "scareIntensity": 1.0,
-      "description": "Ancient and revered folkloric spirit identity. Audio pending user upload."
-    },
-    {
-      "id": "spirit_2",
-      "name": "ELEANOR",
-      "audio": null,
-      "scareIntensity": 1.0,
-      "description": "Configured spirit identity"
-    },
-    {
-      "id": "spirit_3",
-      "name": "MALACHI",
-      "audio": null,
-      "scareIntensity": 0.5,
-      "description": "Configured spirit without custom audio"
-    },
-    {
-      "id": "spirit_4",
-      "name": "THE FORGOTTEN",
-      "audio": null,
-      "scareIntensity": 0.5,
-      "description": "Configured spirit placeholder"
+      "description": "Chatan spirit identity"
     }
   ]
 }

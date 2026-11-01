@@ -32,12 +32,22 @@ export class SpiritConfigManager {
   // Get next spirit identity in sequence (cycles through configured spirits)
   getNextSpirit() {
     if (this.spirits.length === 0) {
-      return { name: 'UNKNOWN', audio: null };
+      return { id: 'spirit_1', name: 'Chatan', audio: '/assets/audio/CHATHAN.mp4' };
     }
     const spirit = this.spirits[this.currentIndex];
     this.currentIndex = (this.currentIndex + 1) % this.spirits.length;
     this.activeSpirit = spirit;
     return spirit;
+  }
+
+  // Randomly select a spirit from configured spirits list (expandable for multiple spirits)
+  getRandomSpirit() {
+    if (this.spirits.length === 0) {
+      return { id: 'spirit_1', name: 'Chatan', audio: '/assets/audio/CHATHAN.mp4' };
+    }
+    const idx = Math.floor(Math.random() * this.spirits.length);
+    this.activeSpirit = this.spirits[idx];
+    return this.activeSpirit;
   }
 
   // Set the currently active spirit
@@ -109,26 +119,20 @@ export class SpiritConfigManager {
       return spirit._resolvedAudio;
     }
 
-    // 1. Explicitly configured path in spirits.json
-    if (spirit.audio) {
-      spirit._resolvedAudio = spirit.audio;
-      return spirit.audio;
-    }
-
-    // 2. Candidate auto-discovery in /assets/audio/ (mapped from spirit_audios/ folder)
-    const baseNames = [];
-    if (spirit.name) {
-      baseNames.push(spirit.name.toLowerCase());
-      baseNames.push(spirit.name.toLowerCase().replace(/\s+/g, '_'));
-      baseNames.push(spirit.name.toLowerCase().replace(/\s+/g, '-'));
-    }
-    if (spirit.id) {
-      baseNames.push(spirit.id.toLowerCase());
-    }
-
-    const extensions = ['mp3', 'mp4', 'wav', 'm4a', 'ogg'];
     const candidates = [];
+    if (spirit.audio) {
+      candidates.push(spirit.audio);
+    }
 
+    const baseNames = new Set([
+      'chatan',
+      'chathan',
+      'CHATHAN',
+      spirit.name ? spirit.name.toLowerCase() : null,
+      spirit.id ? spirit.id.toLowerCase() : null,
+    ].filter(Boolean));
+
+    const extensions = ['mp4', 'wav', 'mp3', 'm4a', 'ogg'];
     for (const base of baseNames) {
       for (const ext of extensions) {
         candidates.push(`/assets/audio/${base}.${ext}`);
@@ -143,12 +147,12 @@ export class SpiritConfigManager {
           return url;
         }
       } catch (err) {
-        // file not yet added, proceed
+        // proceed
       }
     }
 
-    spirit._resolvedAudio = null;
-    return null;
+    spirit._resolvedAudio = spirit.audio || '/assets/audio/CHATHAN.mp4';
+    return spirit._resolvedAudio;
   }
 }
 

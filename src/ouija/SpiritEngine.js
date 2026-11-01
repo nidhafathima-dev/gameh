@@ -62,7 +62,7 @@ export class SpiritEngine {
 
     // 1. Check if this is an inquiry about identity / name
     if (spiritConfig.isIdentityQuestion(cleanQ)) {
-      const spirit = spiritConfig.getNextSpirit();
+      const spirit = spiritConfig.getRandomSpirit();
       this.currentSpirit = spirit;
       return {
         text: spirit.name.toUpperCase(),
@@ -143,10 +143,10 @@ export class SpiritEngine {
       // All letters have been reached! Complete reveal.
       if (!this.hasTriggeredReveal) {
         this.hasTriggeredReveal = true;
-        // Pause briefly after final letter is revealed
+        // Wait approximately 500–800 milliseconds after final letter is revealed
         setTimeout(() => {
           this.onSpellComplete(this.currentText, this.currentSpirit);
-        }, 800);
+        }, 650);
 
         // Slide planchette gently back towards resting position after full reveal sequence
         setTimeout(() => {

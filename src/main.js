@@ -126,7 +126,7 @@ class App {
 
   submitQuestion() {
     const q = this.questionInput.value.trim();
-    if (!q || this.spiritEngine.isSpelling) return;
+    if (!q || this.spiritEngine.isSpelling || this.isAudioPlaying) return;
 
     this.spelledWordEl.textContent = '...';
     this.transcriptionBox.classList.add('active');
@@ -158,7 +158,8 @@ class App {
     const audioUrl = spirit ? await this.spiritEngine.resolveAudioForSpirit(spirit) : null;
 
     if (spirit && audioUrl) {
-      // 1. Brief pause after final letter has completed in spiritEngine
+      this.isAudioPlaying = true;
+      // 1. Brief pause after final letter has completed in spiritEngine (500-800ms)
       // 2. Play the associated audio automatically
       // 3. Synchronize with candle surge & startled camera shudder
       this.subtitleText.textContent = `A dark presence awakens: "${spirit.name}"`;
@@ -169,17 +170,29 @@ class App {
       this.timeline.shakeAmount = 0.14;
 
       // Play custom spirit audio once for this reveal
-      this.sound.playCustomSpiritAudio(audioUrl, () => {
+      this.sound.playCustomSpiritAudio(audioUrl, (audioInstance) => {
         this.transcriptionBox.classList.add('spirit-screech');
         setTimeout(() => {
           this.transcriptionBox.classList.remove('spirit-screech');
         }, 3000);
+
+        if (audioInstance) {
+          audioInstance.onended = () => {
+            this.isAudioPlaying = false;
+          };
+        } else {
+          setTimeout(() => {
+            this.isAudioPlaying = false;
+          }, 3200);
+        }
       });
 
       setTimeout(() => {
         this.subtitleText.classList.remove('visible');
+        this.isAudioPlaying = false;
       }, 5500);
     } else {
+      this.isAudioPlaying = false;
       // Atmospheric response for spirits or queries without custom audio
       this.subtitleText.textContent = `The spirit has answered: "${displayText}"`;
       this.subtitleText.classList.add('visible');
@@ -195,12 +208,22 @@ class App {
 
     const onPointerDown = (e) => {
       if (this.timeline.phase !== PHASES.INTERACTIVE) return;
-      if (this.spiritEngine.isSpelling) return;
+      if (this.spiritEngine.isSpelling || this.isAudioPlaying) return;
 
       this.updateMouseCoords(e);
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
 
-      // Intersect with the Ouija Board mesh
+      // Check if clicking directly on the planchette to ask "Who are you?"
+      const planchetteHits = this.raycaster.intersectObjects(this.ouija.planchetteGroup.children, true);
+      if (planchetteHits.length > 0) {
+        if (!this.questionInput.value || this.questionInput.value.trim() === '') {
+          this.questionInput.value = 'Who are you?';
+        }
+        this.submitQuestion();
+        return;
+      }
+
+      // Intersect with the Ouija Board mesh to slide
       const intersects = this.raycaster.intersectObject(this.ouija.boardMesh, true);
       if (intersects.length > 0) {
         this.isDraggingPlanchette = true;
