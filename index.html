@@ -60,12 +60,40 @@
 
     <!-- Quick Question Prompt Pills -->
     <div class="pills-container">
-      <button class="question-pill" data-question="Is anyone here with us?">Is anyone here?</button>
-      <button class="question-pill" data-question="What is your name?">What is your name?</button>
-      <button class="question-pill" data-question="How did you die?">How did you die?</button>
-      <button class="question-pill" data-question="What do you want?">What do you want?</button>
-      <button class="question-pill" data-question="Are we alone?">Are we alone?</button>
-      <button class="question-pill" data-question="Can you see me?">Can you see me?</button>
+      <!-- Spirit Communion Selector Tabs -->
+      <div class="spirit-commune-bar">
+        <span class="spirit-commune-label">COMMUNING WITH:</span>
+        <button type="button" class="spirit-select-btn active" data-spirit="Chatan" id="spirit-tab-chatan">
+          <span class="spirit-tag-icon">⚡</span> CHATHAN
+        </button>
+        <button type="button" class="spirit-select-btn" data-spirit="Nagavalli" id="spirit-tab-nagavalli">
+          <span class="spirit-tag-icon">🕯️</span> NAGAVALLI
+        </button>
+      </div>
+
+      <!-- Identity Questions -->
+      <div class="pills-row">
+        <button class="question-pill" data-question="What is your name?">What is your name?</button>
+        <button class="question-pill" data-question="Is anyone here with us?">Is anyone here?</button>
+      </div>
+
+      <!-- Chathan Questions Group -->
+      <div class="spirit-questions-group active-spirit-group" data-spirit="Chatan" id="chathan-questions">
+        <span class="group-spirit-title">CHATHAN:</span>
+        <button class="question-pill" data-spirit="Chatan" data-question="How did you die?">How did you die?</button>
+        <button class="question-pill" data-spirit="Chatan" data-question="What do you want?">What do you want?</button>
+        <button class="question-pill" data-spirit="Chatan" data-question="Are we alone?">Are we alone?</button>
+        <button class="question-pill" data-spirit="Chatan" data-question="Can you see me?">Can you see me?</button>
+      </div>
+
+      <!-- Nagavalli Questions Group -->
+      <div class="spirit-questions-group" data-spirit="Nagavalli" id="nagavalli-questions">
+        <span class="group-spirit-title">NAGAVALLI:</span>
+        <button class="question-pill" data-spirit="Nagavalli" data-question="How did you die?">How did you die?</button>
+        <button class="question-pill" data-spirit="Nagavalli" data-question="What do you want?">What do you want?</button>
+        <button class="question-pill" data-spirit="Nagavalli" data-question="Are we alone?">Are we alone?</button>
+        <button class="question-pill" data-spirit="Nagavalli" data-question="Can you see me?">Can you see me?</button>
+      </div>
     </div>
 
     <!-- Freeform Question Input -->

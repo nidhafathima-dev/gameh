@@ -3,22 +3,56 @@
     {
       "id": "spirit_1",
       "name": "Chatan",
+      "aliases": ["Chathan", "chathan", "chatan"],
       "audio": "/assets/audio/CHATHAN.mp4",
       "scareIntensity": 1.0,
-      "description": "Chatan spirit identity"
+      "description": "Chatan spirit identity",
+      "customResponses": {
+        "how did you die": {
+          "text": "MARICHATILLA",
+          "displayText": "Marichatilla"
+        },
+        "what do you want": {
+          "text": "YOUR SOUL",
+          "displayText": "Your soul"
+        },
+        "are we alone": {
+          "text": "NO",
+          "displayText": "No"
+        },
+        "can you see me": {
+          "text": "NANNAYI",
+          "displayText": "Nannayi"
+        }
+      }
     },
     {
       "id": "spirit_2",
       "name": "Nagavalli",
+      "aliases": ["Nagavalli", "nagavalli", "nagavlli"],
       "audio": "/assets/audio/nagavalli.mp3",
       "scareIntensity": 1.0,
       "description": "Nagavalli spirit identity",
       "customResponses": {
+        "how did you die": {
+          "text": "THAMBURAN KONNATHA",
+          "displayText": "Thamburan konnatha"
+        },
         "what do you want": {
           "text": "YOUR BLOOD",
+          "displayText": "Your blood",
           "audio": "/assets/audio/nagavalli2.mp3"
+        },
+        "are we alone": {
+          "text": "NO",
+          "displayText": "No"
+        },
+        "can you see me": {
+          "text": "AAH",
+          "displayText": "Aah"
         }
       }
     }
   ]
 }
+

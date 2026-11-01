@@ -6,8 +6,10 @@ import { Cabin } from './environment/Cabin.js';
 import { BatSwarm } from './environment/Bats.js';
 import { OuijaBoard } from './ouija/OuijaBoard.js';
 import { SpiritEngine } from './ouija/SpiritEngine.js';
+import { spiritConfig } from './config/spirits.js';
 import { SoundSystem } from './audio/SoundSystem.js';
 import { Timeline, PHASES } from './cinematics/Timeline.js';
+
 
 class App {
   constructor() {
@@ -29,7 +31,7 @@ class App {
     this.spiritEngine = new SpiritEngine(
       this.ouija,
       this.sound,
-      (letter) => this.onLetterSpelled(letter),
+      (letter, revealedText, fullText) => this.onLetterSpelled(letter, revealedText, fullText),
       (text, spirit, customAudio) => this.onSpellingDone(text, spirit, customAudio)
     );
 
@@ -108,26 +110,58 @@ class App {
       this.audioToggleBtn.textContent = muted ? '🔇 Unmute' : '🔊 Sound';
     });
 
+    // Spirit selection tabs
+    document.querySelectorAll('.spirit-select-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const spiritName = btn.getAttribute('data-spirit');
+        this.setCommuningSpirit(spiritName);
+      });
+    });
+
     // Spirit Seance questions
     this.askBtn.addEventListener('click', () => this.submitQuestion());
     this.questionInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.submitQuestion();
     });
 
-    // Question pill tags
+    // Question pill tags (identifies spirit and triggers spelling)
     document.querySelectorAll('.question-pill').forEach((pill) => {
       pill.addEventListener('click', () => {
         const q = pill.getAttribute('data-question');
+        const spirit = pill.getAttribute('data-spirit');
+        if (spirit) {
+          this.setCommuningSpirit(spirit);
+        }
         this.questionInput.value = q;
-        this.submitQuestion();
+        this.submitQuestion(q, spirit);
       });
     });
   }
 
-  submitQuestion() {
-    const q = this.questionInput.value.trim();
+  setCommuningSpirit(spiritName) {
+    const spirit = spiritConfig.setActiveSpirit(spiritName);
+    if (this.spiritEngine) {
+      this.spiritEngine.currentSpirit = spirit;
+    }
+    document.querySelectorAll('.spirit-select-btn').forEach((btn) => {
+      const btnSpirit = btn.getAttribute('data-spirit');
+      const match = btnSpirit && spirit && (btnSpirit.toLowerCase() === spirit.name.toLowerCase() || (spirit.aliases && spirit.aliases.some(a => a.toLowerCase() === btnSpirit.toLowerCase())));
+      btn.classList.toggle('active', !!match);
+    });
+    document.querySelectorAll('.spirit-questions-group').forEach((grp) => {
+      const grpSpirit = grp.getAttribute('data-spirit');
+      if (grpSpirit && spirit) {
+        const match = grpSpirit.toLowerCase() === spirit.name.toLowerCase() || (spirit.aliases && spirit.aliases.some(a => a.toLowerCase() === grpSpirit.toLowerCase()));
+        grp.classList.toggle('active-spirit-group', !!match);
+      }
+    });
+  }
+
+  submitQuestion(customQuery = null, specificSpirit = null) {
+    const q = (customQuery || this.questionInput.value || '').trim();
     if (!q || this.spiritEngine.isSpelling || this.isAudioPlaying) return;
 
+    this.questionInput.value = q;
     this.spelledWordEl.textContent = '...';
     this.transcriptionBox.classList.add('active');
     this.subtitleText.textContent = `You whisper: "${q}"`;
@@ -135,36 +169,83 @@ class App {
 
     setTimeout(() => {
       this.subtitleText.textContent = 'The candle flames shudder...';
-      const answer = this.spiritEngine.getAnswerForQuestion(q);
+      const answer = this.spiritEngine.getAnswerForQuestion(q, specificSpirit);
       this.spiritAnswer = answer;
       this.accumulatedText = '';
+
+      // Set initial layout and font sizing ahead of letter spelling
+      this.adjustTranscriptionLayout('...', answer.text);
       this.spiritEngine.spellText(answer);
     }, 1200);
   }
 
-  onLetterSpelled(letter) {
-    if (letter === 'YES' || letter === 'NO' || letter === 'GOODBYE') {
-      this.accumulatedText = letter;
-    } else {
-      this.accumulatedText += letter + ' ';
+  onLetterSpelled(letter, revealedText, fullText) {
+    const textToShow = revealedText || letter;
+    this.accumulatedText = textToShow;
+    this.spelledWordEl.textContent = textToShow;
+    this.adjustTranscriptionLayout(textToShow, fullText);
+  }
+
+  adjustTranscriptionLayout(currentText, fullTargetText) {
+    const el = this.spelledWordEl;
+    const box = this.transcriptionBox;
+    if (!el || !box) return;
+
+    const measureText = (fullTargetText && fullTargetText.length > (currentText ? currentText.length : 0))
+      ? fullTargetText
+      : (currentText || '');
+    const len = measureText.length;
+
+    // Responsive scaling based on character length
+    let fontSizeRem = 1.35;
+    let letterSpacingEm = 0.3;
+
+    if (len > 22) {
+      fontSizeRem = 0.82;
+      letterSpacingEm = 0.08;
+    } else if (len > 16) {
+      fontSizeRem = 0.94;
+      letterSpacingEm = 0.12;
+    } else if (len > 11) {
+      fontSizeRem = 1.05;
+      letterSpacingEm = 0.18;
+    } else if (len > 6) {
+      fontSizeRem = 1.22;
+      letterSpacingEm = 0.24;
     }
-    this.spelledWordEl.textContent = this.accumulatedText.trim();
+
+    el.style.fontSize = `${fontSizeRem}rem`;
+    el.style.letterSpacing = `${letterSpacingEm}em`;
+
+    // Dynamic width constraint safeguard: check if content exceeds box width and step down
+    const availableWidth = box.clientWidth > 0 ? (box.clientWidth - 28) : 500;
+    let iterations = 0;
+    while (el.scrollWidth > availableWidth && fontSizeRem > 0.65 && iterations < 8) {
+      fontSizeRem -= 0.05;
+      letterSpacingEm = Math.max(0.04, letterSpacingEm - 0.02);
+      el.style.fontSize = `${fontSizeRem}rem`;
+      el.style.letterSpacing = `${letterSpacingEm}em`;
+      iterations++;
+    }
   }
 
   async onSpellingDone(text, spirit, customAudio) {
-    const displayText = text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer);
+    const displayText = (typeof this.spiritAnswer === 'object' && this.spiritAnswer.displayText)
+      ? this.spiritAnswer.displayText
+      : (text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer));
+
+    const finalUpper = text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer);
+    this.spelledWordEl.textContent = finalUpper;
+    this.adjustTranscriptionLayout(finalUpper, finalUpper);
 
     // Audio resolution: customAudio if provided for this question, or spirit.audio
     let audioUrl = customAudio || null;
-    if (!audioUrl && spirit) {
+    if (!audioUrl && spirit && this.spiritAnswer && this.spiritAnswer.isIdentity) {
       audioUrl = await this.spiritEngine.resolveAudioForSpirit(spirit);
     }
 
     if (audioUrl) {
       this.isAudioPlaying = true;
-      // 1. Brief pause after final letter has completed in spiritEngine (500-800ms)
-      // 2. Play the associated audio automatically
-      // 3. Synchronize with candle surge & startled camera shudder
       const speaker = spirit ? spirit.name : 'Nagavalli';
       this.subtitleText.textContent = `${speaker}: "${displayText}"`;
       this.subtitleText.classList.add('visible');
@@ -198,7 +279,8 @@ class App {
     } else {
       this.isAudioPlaying = false;
       // Atmospheric response for spirits or queries without custom audio
-      this.subtitleText.textContent = `The spirit has answered: "${displayText}"`;
+      const speaker = spirit ? spirit.name : 'The spirit';
+      this.subtitleText.textContent = `${speaker} answers: "${displayText}"`;
       this.subtitleText.classList.add('visible');
       setTimeout(() => {
         this.subtitleText.classList.remove('visible');
@@ -341,5 +423,6 @@ class App {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  new App();
+  window.app = new App();
 });
+

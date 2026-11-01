@@ -22,11 +22,16 @@ export class SpiritConfigManager {
     return this.spirits.find((s) => s.id === id) || null;
   }
 
-  // Find a specific spirit by name
+  // Find a specific spirit by name, id, or alias
   getSpiritByName(name) {
     if (!name) return null;
     const clean = name.trim().toUpperCase();
-    return this.spirits.find((s) => s.name.toUpperCase() === clean) || null;
+    return this.spirits.find((s) => {
+      if (s.name && s.name.toUpperCase() === clean) return true;
+      if (s.id && s.id.toUpperCase() === clean) return true;
+      if (Array.isArray(s.aliases) && s.aliases.some((a) => a.toUpperCase() === clean)) return true;
+      return false;
+    }) || null;
   }
 
   // Get next spirit identity in sequence (cycles through configured spirits)
@@ -51,48 +56,113 @@ export class SpiritConfigManager {
   }
 
   // Set the currently active spirit
-  setActiveSpirit(nameOrIndex) {
-    if (typeof nameOrIndex === 'number') {
-      if (nameOrIndex >= 0 && nameOrIndex < this.spirits.length) {
-        this.currentIndex = nameOrIndex;
+  setActiveSpirit(nameOrIndexOrSpirit) {
+    if (!nameOrIndexOrSpirit) return this.activeSpirit;
+    if (typeof nameOrIndexOrSpirit === 'number') {
+      if (nameOrIndexOrSpirit >= 0 && nameOrIndexOrSpirit < this.spirits.length) {
+        this.currentIndex = nameOrIndexOrSpirit;
         this.activeSpirit = this.spirits[this.currentIndex];
       }
-    } else if (typeof nameOrIndex === 'string') {
-      const found = this.getSpiritByName(nameOrIndex);
+    } else if (typeof nameOrIndexOrSpirit === 'string') {
+      const found = this.getSpiritByName(nameOrIndexOrSpirit);
       if (found) {
         this.activeSpirit = found;
         this.currentIndex = this.spirits.indexOf(found);
       }
+    } else if (typeof nameOrIndexOrSpirit === 'object' && nameOrIndexOrSpirit.name) {
+      this.activeSpirit = nameOrIndexOrSpirit;
+      this.currentIndex = this.spirits.indexOf(nameOrIndexOrSpirit);
     }
     return this.activeSpirit;
   }
 
-  // Check if any spirit has a custom response with audio for this question
+  // Retrieve spirit-specific predefined answer for a question
   getCustomResponseForQuestion(question, activeSpirit = null) {
     if (!question || typeof question !== 'string') return null;
     const q = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 
-    // Prioritize active spirit, then Nagavalli, then all configured spirits
-    const spiritsToCheck = [];
-    if (activeSpirit) spiritsToCheck.push(activeSpirit);
-    const nagavalli = this.getSpiritByName('Nagavalli');
-    if (nagavalli && !spiritsToCheck.includes(nagavalli)) spiritsToCheck.push(nagavalli);
-    for (const s of this.spirits) {
-      if (!spiritsToCheck.includes(s)) spiritsToCheck.push(s);
+    // 1. Detect if the question explicitly mentions a spirit name or alias
+    let targetSpirit = null;
+    for (const spirit of this.spirits) {
+      const namesToCheck = [spirit.name, spirit.id, ...(spirit.aliases || [])];
+      for (const n of namesToCheck) {
+        if (!n) continue;
+        const cleanName = n.toLowerCase();
+        if (q.includes(cleanName)) {
+          targetSpirit = spirit;
+          break;
+        }
+      }
+      if (targetSpirit) break;
     }
 
-    for (const spirit of spiritsToCheck) {
-      if (spirit.customResponses) {
-        for (const [trigger, resp] of Object.entries(spirit.customResponses)) {
-          const cleanTrigger = trigger.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
-          if (q.includes(cleanTrigger) || cleanTrigger.includes(q)) {
-            return {
-              text: resp.text,
-              audio: resp.audio,
-              spirit: spirit,
-            };
-          }
+    // 2. If no spirit explicitly mentioned, resolve provided activeSpirit or fallback to this.activeSpirit
+    if (!targetSpirit) {
+      if (typeof activeSpirit === 'string') {
+        targetSpirit = this.getSpiritByName(activeSpirit) || this.getSpiritById(activeSpirit);
+      } else if (activeSpirit && typeof activeSpirit === 'object') {
+        targetSpirit = activeSpirit;
+      }
+    }
+    if (!targetSpirit) {
+      targetSpirit = this.activeSpirit || this.spirits[0];
+    }
+
+    // Standardized intent categories for predefined questions
+    const questionCategories = [
+      { key: 'how did you die', triggers: ['how did you die', 'how you died', 'cause of death', 'who killed you', 'how die', 'die'] },
+      { key: 'what do you want', triggers: ['what do you want', 'what want', 'what do you desire', 'what do you need', 'why are you here', 'want'] },
+      { key: 'are we alone', triggers: ['are we alone', 'am i alone', 'is anyone else here', 'anyone else here', 'alone'] },
+      { key: 'can you see me', triggers: ['can you see me', 'do you see me', 'can you see', 'see me'] },
+    ];
+
+    const findInSpirit = (spirit) => {
+      if (!spirit || !spirit.customResponses) return null;
+
+      // 1. Direct or partial trigger matching
+      for (const [trigger, resp] of Object.entries(spirit.customResponses)) {
+        const cleanTrigger = trigger.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+        if (q.includes(cleanTrigger) || cleanTrigger.includes(q)) {
+          return {
+            text: typeof resp === 'string' ? resp : resp.text,
+            displayText: typeof resp === 'object' && resp.displayText ? resp.displayText : (typeof resp === 'string' ? resp : resp.text),
+            audio: typeof resp === 'object' ? resp.audio || null : null,
+            spirit: spirit,
+          };
         }
+      }
+
+      // 2. Intent trigger categories
+      for (const cat of questionCategories) {
+        const matchesCategory = cat.triggers.some((t) => q.includes(t));
+        if (matchesCategory && spirit.customResponses[cat.key]) {
+          const resp = spirit.customResponses[cat.key];
+          return {
+            text: typeof resp === 'string' ? resp : resp.text,
+            displayText: typeof resp === 'object' && resp.displayText ? resp.displayText : (typeof resp === 'string' ? resp : resp.text),
+            audio: typeof resp === 'object' ? resp.audio || null : null,
+            spirit: spirit,
+          };
+        }
+      }
+
+      return null;
+    };
+
+    // First check target spirit
+    const result = findInSpirit(targetSpirit);
+    if (result) {
+      this.activeSpirit = targetSpirit;
+      return result;
+    }
+
+    // Check remaining spirits
+    for (const spirit of this.spirits) {
+      if (spirit === targetSpirit) continue;
+      const otherResult = findInSpirit(spirit);
+      if (otherResult) {
+        this.activeSpirit = spirit;
+        return otherResult;
       }
     }
 
