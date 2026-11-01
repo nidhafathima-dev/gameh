@@ -51,6 +51,11 @@ export class SpiritEngine {
     ];
   }
 
+  // Resolve audio for a spirit (supports direct mapping or auto-discovery in spirit_audios/)
+  async resolveAudioForSpirit(spirit) {
+    return spiritConfig.resolveSpiritAudioUrl(spirit);
+  }
+
   // Determine answer for a user question, recognizing spirit identity inquiries
   getAnswerForQuestion(question) {
     const cleanQ = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();

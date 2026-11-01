@@ -101,6 +101,55 @@ export class SpiritConfigManager {
 
     return false;
   }
+
+  // Automatically discover and resolve custom audio file if dropped in spirit_audios/
+  async resolveSpiritAudioUrl(spirit) {
+    if (!spirit) return null;
+    if (spirit._resolvedAudio !== undefined) {
+      return spirit._resolvedAudio;
+    }
+
+    // 1. Explicitly configured path in spirits.json
+    if (spirit.audio) {
+      spirit._resolvedAudio = spirit.audio;
+      return spirit.audio;
+    }
+
+    // 2. Candidate auto-discovery in /assets/audio/ (mapped from spirit_audios/ folder)
+    const baseNames = [];
+    if (spirit.name) {
+      baseNames.push(spirit.name.toLowerCase());
+      baseNames.push(spirit.name.toLowerCase().replace(/\s+/g, '_'));
+      baseNames.push(spirit.name.toLowerCase().replace(/\s+/g, '-'));
+    }
+    if (spirit.id) {
+      baseNames.push(spirit.id.toLowerCase());
+    }
+
+    const extensions = ['mp3', 'mp4', 'wav', 'm4a', 'ogg'];
+    const candidates = [];
+
+    for (const base of baseNames) {
+      for (const ext of extensions) {
+        candidates.push(`/assets/audio/${base}.${ext}`);
+      }
+    }
+
+    for (const url of candidates) {
+      try {
+        const res = await fetch(url, { method: 'HEAD' });
+        if (res.ok) {
+          spirit._resolvedAudio = url;
+          return url;
+        }
+      } catch (err) {
+        // file not yet added, proceed
+      }
+    }
+
+    spirit._resolvedAudio = null;
+    return null;
+  }
 }
 
 export const spiritConfig = new SpiritConfigManager();

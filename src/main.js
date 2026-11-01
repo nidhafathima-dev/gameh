@@ -151,13 +151,15 @@ class App {
     this.spelledWordEl.textContent = this.accumulatedText.trim();
   }
 
-  onSpellingDone(text, spirit) {
+  async onSpellingDone(text, spirit) {
     const displayText = text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer);
 
-    // If an associated spirit with custom audio was revealed
-    if (spirit && spirit.audio) {
+    // Auto-discover audio if dropped in spirit_audios/ or explicitly configured
+    const audioUrl = spirit ? await this.spiritEngine.resolveAudioForSpirit(spirit) : null;
+
+    if (spirit && audioUrl) {
       // 1. Brief pause after final letter has completed in spiritEngine
-      // 2. Play the associated MP3 audio automatically
+      // 2. Play the associated audio automatically
       // 3. Synchronize with candle surge & startled camera shudder
       this.subtitleText.textContent = `A dark presence awakens: "${spirit.name}"`;
       this.subtitleText.classList.add('visible');
@@ -167,7 +169,7 @@ class App {
       this.timeline.shakeAmount = 0.14;
 
       // Play custom spirit audio once for this reveal
-      this.sound.playCustomSpiritAudio(spirit.audio, () => {
+      this.sound.playCustomSpiritAudio(audioUrl, () => {
         this.transcriptionBox.classList.add('spirit-screech');
         setTimeout(() => {
           this.transcriptionBox.classList.remove('spirit-screech');
