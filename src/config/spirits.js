@@ -67,6 +67,38 @@ export class SpiritConfigManager {
     return this.activeSpirit;
   }
 
+  // Check if any spirit has a custom response with audio for this question
+  getCustomResponseForQuestion(question, activeSpirit = null) {
+    if (!question || typeof question !== 'string') return null;
+    const q = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+
+    // Prioritize active spirit, then Nagavalli, then all configured spirits
+    const spiritsToCheck = [];
+    if (activeSpirit) spiritsToCheck.push(activeSpirit);
+    const nagavalli = this.getSpiritByName('Nagavalli');
+    if (nagavalli && !spiritsToCheck.includes(nagavalli)) spiritsToCheck.push(nagavalli);
+    for (const s of this.spirits) {
+      if (!spiritsToCheck.includes(s)) spiritsToCheck.push(s);
+    }
+
+    for (const spirit of spiritsToCheck) {
+      if (spirit.customResponses) {
+        for (const [trigger, resp] of Object.entries(spirit.customResponses)) {
+          const cleanTrigger = trigger.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+          if (q.includes(cleanTrigger) || cleanTrigger.includes(q)) {
+            return {
+              text: resp.text,
+              audio: resp.audio,
+              spirit: spirit,
+            };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   // Detect if a user question is asking about spirit identity / name
   isIdentityQuestion(question) {
     if (!question || typeof question !== 'string') return false;

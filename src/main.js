@@ -30,7 +30,7 @@ class App {
       this.ouija,
       this.sound,
       (letter) => this.onLetterSpelled(letter),
-      (text, spirit) => this.onSpellingDone(text, spirit)
+      (text, spirit, customAudio) => this.onSpellingDone(text, spirit, customAudio)
     );
 
     // Cinematic timeline
@@ -151,18 +151,22 @@ class App {
     this.spelledWordEl.textContent = this.accumulatedText.trim();
   }
 
-  async onSpellingDone(text, spirit) {
+  async onSpellingDone(text, spirit, customAudio) {
     const displayText = text || (typeof this.spiritAnswer === 'object' ? this.spiritAnswer.text : this.spiritAnswer);
 
-    // Auto-discover audio if dropped in spirit_audios/ or explicitly configured
-    const audioUrl = spirit ? await this.spiritEngine.resolveAudioForSpirit(spirit) : null;
+    // Audio resolution: customAudio if provided for this question, or spirit.audio
+    let audioUrl = customAudio || null;
+    if (!audioUrl && spirit) {
+      audioUrl = await this.spiritEngine.resolveAudioForSpirit(spirit);
+    }
 
-    if (spirit && audioUrl) {
+    if (audioUrl) {
       this.isAudioPlaying = true;
       // 1. Brief pause after final letter has completed in spiritEngine (500-800ms)
       // 2. Play the associated audio automatically
       // 3. Synchronize with candle surge & startled camera shudder
-      this.subtitleText.textContent = `A dark presence awakens: "${spirit.name}"`;
+      const speaker = spirit ? spirit.name : 'Nagavalli';
+      this.subtitleText.textContent = `${speaker}: "${displayText}"`;
       this.subtitleText.classList.add('visible');
 
       // Unexpected scare effect: violent candle flicker & camera tremor

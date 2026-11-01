@@ -60,6 +60,19 @@ export class SpiritEngine {
   getAnswerForQuestion(question) {
     const cleanQ = question.toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
 
+    // 0. Check custom spirit-specific question responses (e.g. Nagavalli answering "YOUR BLOOD" to "what do you want")
+    const customResp = spiritConfig.getCustomResponseForQuestion(cleanQ, this.currentSpirit);
+    if (customResp) {
+      this.currentSpirit = customResp.spirit;
+      this.customAudio = customResp.audio;
+      return {
+        text: customResp.text.toUpperCase(),
+        isIdentity: false,
+        spirit: customResp.spirit,
+        customAudio: customResp.audio,
+      };
+    }
+
     // 1. Check if this is an inquiry about identity / name
     if (spiritConfig.isIdentityQuestion(cleanQ)) {
       const spirit = spiritConfig.getRandomSpirit();
@@ -108,9 +121,11 @@ export class SpiritEngine {
     if (typeof answerData === 'string') {
       text = answerData;
       this.currentSpirit = null;
+      this.customAudio = null;
     } else if (answerData && typeof answerData === 'object') {
       text = answerData.text || '';
       this.currentSpirit = answerData.spirit || null;
+      this.customAudio = answerData.customAudio || null;
     }
 
     this.isSpelling = true;
@@ -145,7 +160,7 @@ export class SpiritEngine {
         this.hasTriggeredReveal = true;
         // Wait approximately 500–800 milliseconds after final letter is revealed
         setTimeout(() => {
-          this.onSpellComplete(this.currentText, this.currentSpirit);
+          this.onSpellComplete(this.currentText, this.currentSpirit, this.customAudio);
         }, 650);
 
         // Slide planchette gently back towards resting position after full reveal sequence

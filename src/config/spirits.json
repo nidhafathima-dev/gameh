@@ -12,7 +12,13 @@
       "name": "Nagavalli",
       "audio": "/assets/audio/nagavalli.mp3",
       "scareIntensity": 1.0,
-      "description": "Nagavalli spirit identity"
+      "description": "Nagavalli spirit identity",
+      "customResponses": {
+        "what do you want": {
+          "text": "YOUR BLOOD",
+          "audio": "/assets/audio/nagavalli2.mp3"
+        }
+      }
     }
   ]
 }
