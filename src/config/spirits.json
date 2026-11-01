@@ -6,6 +6,13 @@
       "audio": "/assets/audio/CHATHAN.mp4",
       "scareIntensity": 1.0,
       "description": "Chatan spirit identity"
+    },
+    {
+      "id": "spirit_2",
+      "name": "Nagavalli",
+      "audio": "/assets/audio/nagavalli.mp3",
+      "scareIntensity": 1.0,
+      "description": "Nagavalli spirit identity"
     }
   ]
 }
