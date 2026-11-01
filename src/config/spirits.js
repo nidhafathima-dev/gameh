@@ -16,6 +16,12 @@ export class SpiritConfigManager {
     return this.spirits;
   }
 
+  // Find a specific spirit by ID
+  getSpiritById(id) {
+    if (!id) return null;
+    return this.spirits.find((s) => s.id === id) || null;
+  }
+
   // Find a specific spirit by name
   getSpiritByName(name) {
     if (!name) return null;
